@@ -1,17 +1,15 @@
 /-
-One AVSS instance: the dealer's certified message, the honest receivers, and the liveness
-theorem "every honest receiver eventually holds valid shares".
+One AVSS instance (fastcrypto-tbls/src/threshold_schnorr/avss.rs) for one dealer, and the liveness
+theorem `every_honest_party_gets_valid_shares`.
 
-The protocol steps follow the numbered steps in the docs of avss.rs:
-1. the dealer's message is broadcast; receivers process it and sign it if their shares are valid;
-   a certificate of weight `t + f` is posted on the total-order broadcast (TOB);
-2. a receiver with invalid shares broadcasts its complaint once the certificate is on the TOB;
-3. receivers with valid shares answer complaints with their shares;
-4. the accuser verifies the responses and recovers its shares from weight `t` of them.
+The protocol follows the numbered steps in the docs of avss.rs: (1) the dealer's message is
+broadcast, receivers process it and sign it if their shares are valid, and a certificate is posted
+on the total-order broadcast (TOB); (2) a receiver with invalid shares sends its complaint once the
+certificate is on the TOB; (3) receivers with valid shares answer complaints; (4) the accuser
+verifies the responses and recovers its shares.
 
-The dealer and the corrupt receivers may behave arbitrarily. We only constrain what honest
-parties store (`HonestComputes`) and require that the honest steps and the network eventually
-make progress (`Run`).
+The assumptions about the caller and the network are the fields of `Certificate`,
+`HonestComputes`, `Grows`, `BasicRun` and `Run`; each field documents what it requires.
 -/
 import FastcryptoSpecs.Avss.Steps
 
@@ -19,86 +17,135 @@ namespace FastcryptoSpecs.Avss
 
 variable {Party : Type} [Fintype Party] [DecidableEq Party]
 
-/-- The certificate for message `m` that all honest receivers accept: the first one from this
-dealer on the TOB. -/
+/-- The certificate for the dealer's message `m`, signed by `signers`, that every honest receiver
+accepts.
+
+Using a single `m` for all honest receivers is itself an assumption: they all accept the same
+certificate for this dealer, namely the first valid one in TOB order (which requires the TOB to
+deliver the same order to everyone). Hashi: the Move contract keeps only the first certificate per
+dealer, and the party loop skips dealers it has already counted. -/
 structure Certificate (S : Setup Party) (A : Api Party) (corrupt : Finset Party)
     (m : A.Message) (signers : Finset Party) : Prop where
-  /-- Receivers check the weight of a certificate before accepting it. -/
+  /-- The signers have total weight at least `t + f`.
+
+  Caller obligation: receivers check the weight of a certificate before accepting it (avss.rs:
+  docs of `Dealer::create_message`). Hashi: `verify_certificate` requires `t + f`
+  (`dealer_cert_quorum`), in reduced weights like `t` and `f`. -/
   weight : S.t + S.f ≤ S.weightOf signers
-  /-- An honest receiver signs a message only if `process_message` returned `Valid`
-  (and signatures cannot be forged). -/
+  /-- Every honest signer `j` got `Valid` from `process_message` on `m`.
+
+  Caller obligation: an honest receiver signs a message only if `process_message` returned
+  `Valid` (avss.rs: docs of `Receiver::process_message`). Also assumes signatures cannot be forged,
+  so a signature attributed to an honest party was made by it. Hashi: `sign_dkg_message` signs
+  only in the `Valid` case. -/
   honest_signed_valid : ∀ j ∈ signers, j ∉ corrupt → ∃ o, A.processMessage j m = .valid o
 
-/-- What the parties hold at some point in time, for the certified message. -/
+/-- What the parties hold at one point in time, about the certified message `m`. Only the honest
+parties' entries are constrained (by `HonestComputes`); the corrupt parties' entries are
+arbitrary. -/
 structure State (A : Api Party) where
-  /-- Receivers that have the certified message. -/
+  /-- The parties that hold `m` itself (not some other message from the same dealer). -/
   hasMessage : Set Party
-  /-- The result of `process_message` on the certified message, once a receiver has run it. -/
+  /-- `processed i = some r`: party `i` has run `process_message` on `m`, with result `r`. -/
   processed : Party → Option (Processed A.Output A.Complaint)
-  /-- Receivers that have broadcast their complaint. -/
+  /-- The parties that have sent their complaint about `m` to the other parties. -/
   complained : Set Party
-  /-- `(accuser, j)`: `j` has received the accuser's complaint. -/
+  /-- `(accuser, j) ∈ complaintDelivered`: party `j` has received the accuser's complaint. -/
   complaintDelivered : Set (Party × Party)
-  /-- `(j, accuser, response)`: `j` has sent its response to the accuser. -/
+  /-- `(j, accuser, r) ∈ responded`: party `j` has sent response `r` to the accuser. -/
   responded : Set (Party × Party × A.Response)
-  /-- The verified responses an accuser has collected. -/
+  /-- The verified complaint responses party `i` has collected. -/
   verified : Party → List A.Verified
-  /-- A receiver's final output. -/
+  /-- Party `i`'s output for this dealer, once it has one. -/
   output : Party → Option A.Output
 
-/-- Honest receivers store what the fastcrypto steps return. -/
+/-- Honest parties store exactly what the fastcrypto functions return. Each field constrains only
+honest parties (`i ∉ corrupt`). Caller obligations. -/
 structure HonestComputes (A : Api Party) (m : A.Message) (corrupt : Finset Party)
     (s : State A) : Prop where
+  /-- A stored processing result is the result of `process_message` by `i` on the certified
+  message `m` (not on another message from the same dealer). Hashi: when the stored message's hash
+  differs from the certificate's, `run_dkg_as_party` drops the old output and reprocesses the
+  certified message. -/
   processed_eq : ∀ i r, i ∉ corrupt → s.processed i = some r → r = A.processMessage i m
-  /-- A `Valid` result is stored as the output. -/
+  /-- A `Valid(o)` result is stored as the output `o`. -/
   stores_valid : ∀ i o, i ∉ corrupt → s.processed i = some (.valid o) → s.output i = some o
-  /-- Only responses that passed `verify_complaint_response` are collected... -/
+  /-- Every collected response was returned by `verify_complaint_response` for `i` on `m`. -/
   verified_ok : ∀ i v, i ∉ corrupt → v ∈ s.verified i → A.IsVerified i m v
-  /-- ...and at most one per responder. -/
+  /-- The collected responses come from distinct responders. -/
   verified_nodup : ∀ i, i ∉ corrupt → ((s.verified i).map A.responderId).Nodup
-  /-- An output comes from `process_message` or from `recover`. -/
+  /-- An output is either the `Valid` result of `process_message` or a result of `recover` by
+  `i` on `m`. -/
   output_from : ∀ i o, i ∉ corrupt → s.output i = some o →
     s.processed i = some (.valid o) ∨ ∃ vs, A.recover i m vs = some o
 
-/-- Parties do not forget results or responses. -/
+/-- From one point in time to the next, parties do not forget processing results or collected
+responses. Caller obligation: results are persisted (avss.rs: docs of `process_message` and
+`handle_complaint`). -/
 structure Grows (A : Api Party) (s s' : State A) : Prop where
   processed : ∀ i r, s.processed i = some r → s'.processed i = some r
   verified : ∀ i v, v ∈ s.verified i → v ∈ s'.verified i
 
-/-- An execution `σ` (the state at each point in time) for the certified message `m`, without the
-complaint path: honest receivers store what the steps return, and eventually get and process the
-certified message. -/
+/-- An execution: `σ n` is the state at time `n ∈ ℕ`. The set `corrupt` of Byzantine parties is
+fixed for the whole execution (static corruption); they and the dealer may behave arbitrarily.
+
+This structure covers getting and processing the certified message, without the complaint path.
+"Eventually P" means "`P` holds at some time `n'`". -/
 structure BasicRun (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ → State A) :
     Prop where
+  /-- At every time, honest parties store what the functions return. -/
   honest : ∀ n, HonestComputes A m corrupt (σ n)
+  /-- At every step, honest parties keep what they stored. -/
   grows : ∀ n, Grows A (σ n) (σ (n + 1))
-  /-- Every honest receiver eventually has the certified message (from the dealer's broadcast,
-  or fetched from a signer). -/
+  /-- Every honest party eventually holds the certified message `m`.
+
+  Caller obligation, needed because a dealer can get a certificate without sending `m` to every
+  receiver. avss.rs: docs of `Receiver::process_message` (fastcrypto#1109). Hashi:
+  `run_dkg_as_party` fetches `m` from the certificate's signers (`hedged_retrieve`, checked
+  against the certificate's hash) when it is missing or differs. -/
   gets_message : ∀ i, i ∉ corrupt → ∃ n, i ∈ (σ n).hasMessage
-  /-- An honest receiver eventually runs `process_message` on it. -/
+  /-- An honest party that holds `m` eventually runs `process_message` on it.
+
+  Caller obligation (avss.rs: step 2). -/
   processes : ∀ i n, i ∉ corrupt → i ∈ (σ n).hasMessage → ∃ n' r, (σ n').processed i = some r
 
-/-- A `BasicRun` plus the complaint path. Each field is a liveness obligation of the honest
-parties or the network: a step that can be taken eventually is. -/
+/-- A `BasicRun` together with the complaint path. -/
 structure Run (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ → State A) : Prop
     extends BasicRun A m corrupt σ where
-  /-- An honest receiver with a complaint eventually broadcasts it (after the certificate). -/
+  /-- An honest party whose `process_message` returned `Complaint(c)` eventually sends it.
+
+  Caller obligation (avss.rs: docs of `process_message`: once the certificate is on the TOB).
+  Hashi sends it to the certificate's signers rather than to everyone, which suffices since the
+  honest signers have weight at least `t`. -/
   complains : ∀ i n c, i ∉ corrupt → (σ n).processed i = some (.complaint c) →
     ∃ n', i ∈ (σ n').complained
-  /-- A broadcast complaint eventually reaches every honest receiver. -/
+  /-- A complaint sent by an honest party eventually reaches every honest party.
+
+  Network assumption. -/
   complaint_delivered : ∀ i j n, i ∉ corrupt → j ∉ corrupt → i ∈ (σ n).complained →
     ∃ n', (i, j) ∈ (σ n').complaintDelivered
-  /-- An honest receiver with a valid output (kept since processing) answers a complaint it
-  received if `handle_complaint` accepts it. -/
+  /-- If honest party `j` has received the complaint `c` of `i` (the result of `process_message`
+  for `i`), `j`'s own result is `Valid(o)`, and `handle_complaint` by `j` on `(m, i, c, o)` returns
+  `Ok(r)`, then `j` eventually sends `r` to `i`.
+
+  Caller obligation (avss.rs: step 3; `j` keeps `m` and `o` until the end of the epoch). Hashi:
+  met only if `complaint_response_policy` allows this dealer; the default policy answers no
+  complaint. -/
   responds : ∀ i j n c o r, j ∉ corrupt → (i, j) ∈ (σ n).complaintDelivered →
     A.processMessage i m = .complaint c → A.processMessage j m = .valid o →
     A.handleComplaint j m i c o = some r → ∃ n', (j, i, r) ∈ (σ n').responded
-  /-- A response between honest parties is eventually delivered, and collected if it passes
-  `verify_complaint_response` (unless the accuser already has one from that responder). -/
+  /-- If honest party `j` has sent response `r` to honest party `i`, and
+  `verify_complaint_response` by `i` on `(m, j, r)` returns `Ok`, then `i` eventually has a
+  collected response from `j` (this one, or an earlier one from `j`).
+
+  Network assumption (delivery) and caller obligation (`i` verifies and collects responses). -/
   response_delivered : ∀ i j r v n, i ∉ corrupt → j ∉ corrupt → (j, i, r) ∈ (σ n).responded →
     A.verifyComplaintResponse i m j r = some v →
     ∃ n', ∃ v' ∈ (σ n').verified i, A.responderId v' = j
-  /-- An accuser eventually calls `recover` once it succeeds, and stores the result. -/
+  /-- If honest party `i` has a complaint and `recover` by `i` on `m` and its collected responses
+  returns `Ok`, then `i` eventually has an output.
+
+  Caller obligation (avss.rs: step 4). -/
   recovers : ∀ i n c o, i ∉ corrupt → (σ n).processed i = some (.complaint c) →
     A.recover i m ((σ n).verified i) = some o → ∃ n' o', (σ n').output i = some o'
 
@@ -121,7 +168,8 @@ lemma Run.verified_mono (h : Run A m corrupt σ) {n n' : ℕ} (hle : n ≤ n') {
   | succ k _ ih => exact (h.grows k).verified i v ih
 
 omit [Fintype Party] in
-/-- Eventually-true facts that stay true hold together at some point. -/
+/-- If each `P j` eventually holds and stays true once true, then at some time all of them hold
+together. -/
 lemma eventually_all (T : Finset Party) (P : Party → ℕ → Prop)
     (mono : ∀ j n n', n ≤ n' → P j n → P j n') (h : ∀ j ∈ T, ∃ n, P j n) :
     ∃ N, ∀ j ∈ T, P j N := by
@@ -136,7 +184,7 @@ lemma eventually_all (T : Finset Party) (P : Party → ℕ → Prop)
     · exact mono _ _ _ (le_max_left _ _) (hN j hj)
 
 omit [Fintype Party] in
-/-- Whatever an honest receiver outputs is valid. -/
+/-- Any output an honest party holds is valid: its shares pass `SharesForNode::verify`. -/
 lemma output_valid {S : Setup Party} (hA : Contracts S A) {s : State A}
     (hs : HonestComputes A m corrupt s) {i : Party} (hi : i ∉ corrupt) {o : A.Output}
     (ho : s.output i = some o) : A.ValidOutput m i o := by
@@ -146,9 +194,16 @@ lemma output_valid {S : Setup Party} (hA : Contracts S A) {s : State A}
 
 end Lemmas
 
-/-- **Liveness of AVSS.** Given a certificate for the dealer's message `m` (as checked by the
-receivers) and Byzantine weight at most `f`, every honest receiver eventually holds valid shares
-for `m`, either directly from the dealer or by recovering them through complaints. -/
+/-- **Liveness of AVSS.** Assume:
+* `hS`: the parameters pass `Parameters::validate`;
+* `hA`: the fastcrypto functions satisfy their contracts;
+* `hcorrupt`: the Byzantine parties `corrupt` have total weight at most `f` (environment);
+* `hcert`: honest receivers accept a certificate for message `m` from `signers`;
+* `hrun`: the execution `σ` meets the caller and network assumptions of `Run`.
+
+Then every honest party `i` eventually holds an output whose shares pass
+`SharesForNode::verify(m, share_ids_of(i), i)`: from `process_message` directly, or from `recover`
+after complaining. -/
 theorem every_honest_party_gets_valid_shares {S : Setup Party} {A : Api Party}
     (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
     (hcorrupt : S.weightOf corrupt ≤ S.f) {m : A.Message} {signers : Finset Party}

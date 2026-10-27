@@ -1,18 +1,21 @@
 /-
-Shamir secret sharing, as implemented by `Poly` in fastcrypto-tbls/src/polynomial.rs.
+# Shamir secret sharing
 
-The functions are black boxes with the names and inputs/outputs of the Rust API. `Contracts`
-states what we expect from them, only by relating them to each other; each contract should be
-backed by a test against the Rust code. The theorems are proved from the contracts alone.
+Specification of Shamir secret sharing as implemented by `Poly<S>` in
+`fastcrypto-tbls/src/polynomial.rs`.
+
+`Api` lists the Rust functions as black boxes. `Contracts` states what we expect from them; each
+field documents the assumption and how it is checked against the Rust code ("Check: test" or
+"Check: review"). The theorems are proved from `Contracts` alone.
 -/
 import Mathlib
 
 namespace FastcryptoSpecs.Shamir
 
-/-- `types::ShareIndex = NonZeroU16`. -/
+/-- `types::ShareIndex = NonZeroU16`: a natural number in `[1, 2^16)`. -/
 abbrev ShareIndex := { i : ℕ // 0 < i ∧ i < 2 ^ 16 }
 
-/-- `polynomial::Eval<C>`: a share, i.e. an evaluation at a share index. -/
+/-- `polynomial::Eval<C>`: a share, i.e. a value together with the share index it belongs to. -/
 @[ext]
 structure Eval (F : Type) where
   index : ShareIndex
@@ -22,58 +25,89 @@ structure Eval (F : Type) where
 inductive Error where
   | invalidInput
 
-/-- The scalar-polynomial API of `Poly<S>` in polynomial.rs. -/
+/-- The scalar-polynomial API of `Poly<S>` in polynomial.rs, as black boxes over the scalar field
+`F`, with the names and inputs/outputs of the Rust functions and no implementation.
+
+The functions are total and pure. Field arithmetic is exact. -/
 structure Api (F : Type) where
   /-- `Poly<S>`. -/
   Poly : Type
   /-- `Poly::c0`: the constant term, i.e. the shared secret. -/
   c0 : Poly → F
-  /-- `Poly::degree_bound`. -/
+  /-- `Poly::degree_bound`: the length of the coefficient vector minus one. -/
   degreeBound : Poly → ℕ
-  /-- `Poly::rand_fixed_c0(degree, c0, rng)`: the distribution of the polynomial it returns. -/
+  /-- `Poly::rand_fixed_c0(degree, c0, rng)`: the distribution of the polynomial it returns, over
+  the randomness of `rng`. "`p` can be returned" means `p ∈ (randFixedC0 d s).support`. -/
   randFixedC0 : (degree : ℕ) → (c0 : F) → PMF Poly
-  /-- `Poly::eval`. -/
+  /-- `Poly::eval(i)`. -/
   eval : Poly → ShareIndex → Eval F
-  /-- `impl Add<&Poly<C>> for Poly<C>` (via `AddAssign`). -/
+  /-- `impl Add<&Poly<C>> for Poly<C>` (implemented with `AddAssign`). -/
   add : Poly → Poly → Poly
-  /-- `Poly::recover_c0(t, shares)`. -/
+  /-- `Poly::recover_c0(t, shares)`. `Err` is `.error`; a panic cannot be represented, so a
+  contract saying it returns `.ok` also claims that it does not panic on those inputs. -/
   recoverC0 : (t : ℕ) → List (Eval F) → Except Error F
 
 variable {F : Type} [Field F]
 
-/-- What we expect from the Rust functions. Each field is a property of one or two functions,
-to be checked by a test against fastcrypto. -/
+/-- What we expect from the Rust functions. Each field relates one or two of them. -/
 structure Contracts (A : Api F) : Prop where
-  /-- `rand_fixed_c0(d, s)` has constant term `s`. -/
+  /-- Every polynomial `rand_fixed_c0(d, s)` can return has `c0() == s`.
+
+  Check: test. No test today. -/
   rand_c0 : ∀ d s p, p ∈ (A.randFixedC0 d s).support → A.c0 p = s
-  /-- `rand_fixed_c0(d, s)` has degree bound `d`. -/
+  /-- Every polynomial `rand_fixed_c0(d, s)` can return has `degree_bound() == d`.
+
+  Check: test. Partly tested today: `test_degree_bound` covers `rand`, not `rand_fixed_c0`. -/
   rand_degree : ∀ d s p, p ∈ (A.randFixedC0 d s).support → A.degreeBound p = d
-  /-- `eval(i)` returns a share with index `i`. -/
+  /-- `p.eval(i).index == i` for every polynomial `p` and share index `i`.
+
+  Check: test. No test today. -/
   eval_index : ∀ p i, (A.eval p i).index = i
-  /-- Adding polynomials adds their shares. -/
+  /-- `(p + q).eval(i).value == p.eval(i).value + q.eval(i).value` for all `p`, `q`, `i`,
+  including polynomials of different degree bounds.
+
+  Check: test. Partly tested today: the `add` test checks one index, for degrees 3 and 5. -/
   add_eval : ∀ p q i, (A.eval (A.add p q) i).value = (A.eval p i).value + (A.eval q i).value
-  /-- Adding polynomials adds their constant terms. -/
+  /-- `(p + q).c0() == p.c0() + q.c0()` for all `p`, `q`.
+
+  Check: test. No test today. -/
   add_c0 : ∀ p q, A.c0 (A.add p q) = A.c0 p + A.c0 q
-  /-- Adding polynomials gives the larger degree bound. -/
+  /-- `(p + q).degree_bound() == max(p.degree_bound(), q.degree_bound())` for all `p`, `q`.
+
+  Check: test. No test today. -/
   add_degree : ∀ p q, A.degreeBound (A.add p q) = max (A.degreeBound p) (A.degreeBound q)
-  /-- `recover_c0(t, shares)` returns the constant term of a polynomial of degree bound below `t`
-  from exactly `t` of its shares at distinct indices. -/
+  /-- For every `t`, every polynomial `p` with `degree_bound() < t`, and every list `idx` of
+  exactly `t` distinct share indices, `recover_c0(t, idx.map(|i| p.eval(i)))` returns `Ok(p.c0())`.
+  In particular it does not panic or return `Err` on such inputs.
+
+  Check: test. Partly tested today: `test_recover_c0` only uses `degree_bound() == t - 1`. -/
   recover_c0 : ∀ t p (idx : List ShareIndex), A.degreeBound p < t → idx.Nodup →
     idx.length = t → A.recoverC0 t (idx.map (A.eval p)) = .ok (A.c0 p)
-  /-- `rand_fixed_c0(d, s)` samples the non-constant coefficients uniformly: adding a fixed
-  polynomial `q` of degree bound at most `d` gives the distribution of `rand_fixed_c0(d, s + q.c0())`.
-  This is an assumption about the randomness (`S::rand` is uniform), not a unit-testable property. -/
+  /-- For every `d`, `s` and every polynomial `q` with `degree_bound() ≤ d`, the distribution of
+  `rand_fixed_c0(d, s) + q` equals the distribution of `rand_fixed_c0(d, s + q.c0())`.
+
+  This holds when `rand_fixed_c0` samples the coefficients of degree `1..=d` uniformly and
+  independently, i.e. when `S::rand` is uniform.
+
+  Check: review. It is a property of the randomness, which unit tests cannot establish. -/
   rand_shift : ∀ d s q, A.degreeBound q ≤ d →
     (A.randFixedC0 d s).map (fun p => A.add p q) = A.randFixedC0 d (s + A.c0 q)
-  /-- For fewer than `t` indices and any `c`, some polynomial of degree bound at most `t - 1` has
-  constant term `c` and is zero at those indices (e.g. `c · ∏ₖ (1 - x / iₖ)`). -/
+  /-- For every `t`, every value `c`, and every list `idx` of fewer than `t` share indices, some
+  polynomial `q` has `degree_bound() ≤ t - 1`, `c0() == c`, and `q.eval(i).value == 0` for every
+  `i` in `idx`. For example `q = c · ∏ₖ (1 - x / iₖ)`.
+
+  Check: test, by constructing `q` from its coefficients and checking the three properties. No
+  test today. -/
   vanishing_exists : ∀ (t : ℕ) (c : F) (idx : List ShareIndex), idx.length < t →
     ∃ q, A.degreeBound q ≤ t - 1 ∧ A.c0 q = c ∧ ∀ i ∈ idx, (A.eval q i).value = 0
 
 variable {A : Api F}
 
-/-- **Dealing.** Shares of a secret `s`, dealt with `rand_fixed_c0(t - 1, s)`: any `t` of them
-recover `s`. -/
+/-- **Dealing.** Let `t > 0` and let `p` be a polynomial that `rand_fixed_c0(t - 1, s)` can
+return. For every list `idx` of exactly `t` distinct share indices, `recover_c0` on the shares
+`p.eval(i)` for `i` in `idx` returns `Ok(s)`.
+
+Uses `rand_c0`, `rand_degree` and `recover_c0`. -/
 theorem recover_dealt_secret (hA : Contracts A) {t : ℕ} (ht : 0 < t) {s : F} {p : A.Poly}
     (hp : p ∈ (A.randFixedC0 (t - 1) s).support) (idx : List ShareIndex) (hnodup : idx.Nodup)
     (hlen : idx.length = t) :
@@ -81,15 +115,20 @@ theorem recover_dealt_secret (hA : Contracts A) {t : ℕ} (ht : 0 < t) {s : F} {
   rw [hA.recover_c0 t p idx (by rw [hA.rand_degree _ _ _ hp]; omega) hnodup hlen,
     hA.rand_c0 _ _ _ hp]
 
-/-- **Agreement.** Any two sets of `t` shares of the same dealing recover the same secret. -/
+/-- **Agreement.** Under the hypotheses of `recover_dealt_secret`, any two lists `idx` and `idx'`
+of exactly `t` distinct share indices give the same result of `recover_c0`. -/
 theorem recover_agrees (hA : Contracts A) {t : ℕ} (ht : 0 < t) {s : F} {p : A.Poly}
     (hp : p ∈ (A.randFixedC0 (t - 1) s).support) (idx idx' : List ShareIndex)
     (h : idx.Nodup ∧ idx.length = t) (h' : idx'.Nodup ∧ idx'.length = t) :
     A.recoverC0 t (idx.map (A.eval p)) = A.recoverC0 t (idx'.map (A.eval p)) := by
   rw [recover_dealt_secret hA ht hp idx h.1 h.2, recover_dealt_secret hA ht hp idx' h'.1 h'.2]
 
-/-- **Privacy.** The shares at fewer than `t` indices have the same distribution for every
-secret: they reveal nothing about it. -/
+/-- **Privacy.** For every list `idx` of fewer than `t` share indices and any two secrets `s`,
+`s'`: the joint distribution of the shares at `idx` of `rand_fixed_c0(t - 1, s)` equals that of
+`rand_fixed_c0(t - 1, s')`. So fewer than `t` shares reveal nothing about the secret
+(information-theoretically).
+
+Uses `vanishing_exists`, `rand_shift`, `eval_index` and `add_eval`. -/
 theorem shares_independent_of_secret (hA : Contracts A) {t : ℕ} (s s' : F)
     (idx : List ShareIndex) (hlen : idx.length < t) :
     (A.randFixedC0 (t - 1) s).map (fun p => idx.map (A.eval p)) =
@@ -110,7 +149,7 @@ theorem shares_independent_of_secret (hA : Contracts A) {t : ℕ} (s s' : F)
 
 /-! ### Summing dealings (the core of `complete_dkg`) -/
 
-/-- The sum of the dealers' polynomials, `p₀ + p₁ + ⋯`, as computed with `add`. -/
+/-- The sum `p₀ + p₁ + ⋯` of the dealers' polynomials, computed left to right with `add`. -/
 def sumPolys (A : Api F) (p : A.Poly) (rest : List A.Poly) : A.Poly :=
   rest.foldl A.add p
 
@@ -144,8 +183,13 @@ lemma sumPolys_degree (hA : Contracts A) {d : ℕ} (p : A.Poly) (rest : List A.P
     · rw [hA.add_degree, hp, hrest q List.mem_cons_self, max_self]
     · exact fun q' hq' => hrest q' (List.mem_cons_of_mem _ hq')
 
-/-- **DKG.** Every dealer `k` deals a secret `sₖ` with `rand_fixed_c0(t - 1, sₖ)`. Each party adds
-up the shares it got from all dealers. Then any `t` of the summed shares recover `Σₖ sₖ`. -/
+/-- **DKG.** Let `t > 0` and let `dealings` be a nonempty list of pairs `(sₖ, pₖ)`, where each
+`pₖ` is a polynomial that `rand_fixed_c0(t - 1, sₖ)` can return. For every list `idx` of exactly
+`t` distinct share indices, `recover_c0` on the summed shares `Σₖ pₖ.eval(i).value` (one per `i` in
+`idx`, with index `i`) returns `Ok(Σₖ sₖ)`.
+
+Uses `add_eval`, `add_c0`, `add_degree`, `eval_index`, `rand_c0`, `rand_degree` and
+`recover_c0`. -/
 theorem recover_sum_of_dealings (hA : Contracts A) {t : ℕ} (ht : 0 < t)
     (dealings : List (F × A.Poly)) (hne : dealings ≠ [])
     (hdealt : ∀ d ∈ dealings, d.2 ∈ (A.randFixedC0 (t - 1) d.1).support)
