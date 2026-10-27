@@ -57,10 +57,78 @@ Next step: add one property test per testable contract in fastcrypto.
 
 * Feldman commitments (`commit`, `verify_share`).
 
-## Later
+## AVSS (`FastcryptoSpecs/Avss/`)
 
-* `FastcryptoSpecs/Avss/` (not built yet): first draft of the AVSS model for threshold Schnorr,
-  aiming at "every honest party eventually gets its shares".
+One instance of the AVSS protocol from `fastcrypto-tbls/src/threshold_schnorr/avss.rs`, the
+building block of the threshold Schnorr DKG.
+
+Black boxes: `process_message`, `handle_complaint`, `verify_complaint_response`, `recover`, and
+`SharesForNode::verify` (which defines "valid shares").
+
+**Theorem** (`every_honest_party_gets_valid_shares`, proved): given a certificate of weight
+`≥ t + f` for the dealer's message and corrupt weight `≤ f`, every honest receiver eventually
+holds shares that pass `SharesForNode::verify` against the certified message, either straight from
+the dealer or by recovering them through complaints. The dealer and the corrupt receivers may
+behave arbitrarily.
+
+The proof follows the argument in the docs of `Dealer::create_message`: the honest signers have
+weight `≥ t`, they hold valid shares, they answer every honest complaint, and their responses are
+enough for `recover`.
+
+### Contracts (`Steps.lean`)
+
+| Contract | Statement |
+|---|---|
+| `process_valid` | a `Valid` result from `process_message` passes `SharesForNode::verify` |
+| `process_invalid_iff` | whether `process_message` rejects a message outright is the same for all receivers |
+| `handle_accepts` | a complaint from `process_message` is accepted by `handle_complaint` of any receiver whose `process_message` returned `Valid` |
+| `response_verifies` | that receiver's response passes `verify_complaint_response` at the accuser |
+| `verify_binds` | `verify_complaint_response` binds the response to the responder it came from |
+| `recover_complete` | `recover` succeeds on verified responses from distinct responders of weight `≥ t` |
+| `recover_sound` | `recover` only returns shares that pass `SharesForNode::verify` (its final check) |
+
+### Protocol assumptions (`Protocol.lean`)
+
+*Certificate*: receivers check its weight (`≥ t + f`), honest receivers sign only `Valid` messages,
+and all honest receivers use the same (first) certificate per dealer.
+
+*Honest behaviour* (`HonestComputes`): honest receivers store what the steps return, collect only
+verified responses, at most one per responder.
+
+*Liveness obligations* (`Run`), each "a step that can be taken eventually is":
+
+| Obligation | Documented in avss.rs? |
+|---|---|
+| `gets_message`: every honest receiver eventually has the **certified** message | **no**, see below |
+| `processes`: it runs `process_message` on it | yes |
+| `complains`: with a complaint, it broadcasts it once the certificate is on the TOB | yes |
+| `complaint_delivered`: broadcast complaints reach every honest receiver | network assumption |
+| `responds`: a receiver with a valid output keeps it and answers complaints | yes |
+| `response_delivered`: responses between honest parties arrive and are collected if verified | network assumption |
+| `recovers`: an accuser calls `recover` once it succeeds | yes |
+
+### Open questions found by the model
+
+1. **Getting the certified message.** A corrupt dealer can withhold its message from an honest
+   receiver and still collect `t + f` signatures from others. That receiver then cannot process
+   the message or complain, since a complaint needs the ciphertext. The model assumes the caller
+   gets the certified message to every honest receiver, e.g. because it is posted with the
+   certificate or fetched from a signer. avss.rs does not say how.
+2. **Equivocation.** A corrupt dealer can send different messages to different receivers. The model
+   assumes an honest receiver processes the *certified* message even if it first received another
+   one. avss.rs says receivers sign at most one message per dealer and accept the first
+   certificate, but not that they must then process the certified message.
+
+Both are about the caller (e.g. Hashi), not about fastcrypto's functions.
+
+### Not covered yet
+
+* That all honest receivers' shares fit one polynomial of degree `t - 1`, i.e. any `t` of them
+  recover the same secret. This needs a contract linking `SharesForNode::verify` to the Shamir
+  spec (Feldman commitments).
+* Consistency of the hypotheses: a concrete execution satisfying `Run`, to show the theorem is not
+  vacuous.
+* `complete_dkg`, key rotation, and batch AVSS with AVID.
 
 ## Build
 
