@@ -107,7 +107,9 @@ Then there are polynomials `p d`, one per dealer `d` in `dealers`, each with
 
 `p d` is the polynomial of `honest_outputs_agree` for `d`'s instance. All honest parties pass the
 same `dealers`: that is the caller obligation of `complete_dkg` that all parties use the outputs of
-the same certified dealers. -/
+the same certified dealers. Hashi meets it in `run_dkg_as_party`: it takes the dealers of the
+on-chain certificates in TOB order until their weight reaches `t`, every skipped certificate is
+skipped on on-chain data alone, and a local failure aborts the attempt instead of skipping. -/
 theorem dkg_outputs_agree (hS : S.Valid) (hA : Contracts S A) (hSh : Shamir.Contracts A.Sh)
     (hD : DkgContracts S A D) {corrupt : Finset Party} (hcorrupt : S.weightOf corrupt ≤ S.f)
     {dealers : List Party} {m : Party → A.Message} {signers : Party → Finset Party}
