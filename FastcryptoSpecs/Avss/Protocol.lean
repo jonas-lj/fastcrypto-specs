@@ -65,10 +65,10 @@ structure Grows (A : Api Party) (s s' : State A) : Prop where
   processed : ∀ i r, s.processed i = some r → s'.processed i = some r
   verified : ∀ i v, v ∈ s.verified i → v ∈ s'.verified i
 
-/-- An execution `σ` (the state at each point in time) for the certified message `m`. The last
-seven fields are the liveness obligations of the honest parties and the network: each says that a
-step that can be taken eventually is. -/
-structure Run (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ → State A) :
+/-- An execution `σ` (the state at each point in time) for the certified message `m`, without the
+complaint path: honest receivers store what the steps return, and eventually get and process the
+certified message. -/
+structure BasicRun (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ → State A) :
     Prop where
   honest : ∀ n, HonestComputes A m corrupt (σ n)
   grows : ∀ n, Grows A (σ n) (σ (n + 1))
@@ -77,6 +77,11 @@ structure Run (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ
   gets_message : ∀ i, i ∉ corrupt → ∃ n, i ∈ (σ n).hasMessage
   /-- An honest receiver eventually runs `process_message` on it. -/
   processes : ∀ i n, i ∉ corrupt → i ∈ (σ n).hasMessage → ∃ n' r, (σ n').processed i = some r
+
+/-- A `BasicRun` plus the complaint path. Each field is a liveness obligation of the honest
+parties or the network: a step that can be taken eventually is. -/
+structure Run (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ → State A) : Prop
+    extends BasicRun A m corrupt σ where
   /-- An honest receiver with a complaint eventually broadcasts it (after the certificate). -/
   complains : ∀ i n c, i ∉ corrupt → (σ n).processed i = some (.complaint c) →
     ∃ n', i ∈ (σ n').complained

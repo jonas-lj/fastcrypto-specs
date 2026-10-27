@@ -75,6 +75,22 @@ The proof follows the argument in the docs of `Dealer::create_message`: the hone
 weight `≥ t`, they hold valid shares, they answer every honest complaint, and their responses are
 enough for `recover`.
 
+### Honest dealers (`HonestDealer.lean`)
+
+| Theorem | Statement |
+|---|---|
+| `honest_dealer_no_complaints` | If the message comes from `create_message`, every honest receiver eventually holds valid shares straight from the dealer, and none ever has a complaint. Assumes only `BasicRun` (get and process the message), so it holds whatever happens on the complaint path. |
+| `honest_dealer_certifiable` | If the honest weight is `≥ t + f`, the honest receivers alone form a certificate for an honest dealer. |
+| `honest_dealer_certifiable_of_params` | Corollary: this holds when corrupt weight `≤ f` and `W ≥ t + 2f`. |
+| `corrupt_can_block_certificate` | If `W < t + f + (corrupt weight)`, no set of honest signers reaches `t + f`, so corrupt parties can block an honest dealer by not signing. |
+
+`Parameters::validate` only requires `t + f ≤ W`, so `W ≥ t + 2f` is an extra condition. Hashi
+sets `t = W - 2f` before weight reduction, so it holds there with equality. After
+`Nodes::knapsack_reduce` it need not hold for the reduced `(t', f', W')`, as
+knapsack_weight_reduction.rs documents. Instead the reduction guarantees honest reduced weight
+`≥ t' + f'` when the corrupt original weight is at most `f - δ`, which is the hypothesis of
+`honest_dealer_certifiable`.
+
 ### Contracts (`Steps.lean`)
 
 | Contract | Statement |
@@ -86,6 +102,7 @@ enough for `recover`.
 | `verify_binds` | `verify_complaint_response` binds the response to the responder it came from |
 | `recover_complete` | `recover` succeeds on verified responses from distinct responders of weight `≥ t` |
 | `recover_sound` | `recover` only returns shares that pass `SharesForNode::verify` (its final check) |
+| `create_valid` | every receiver gets `Valid` on a message from `create_message` (same nodes, parameters, session id and `commitment` as the dealer) |
 
 ### Protocol assumptions (`Protocol.lean`)
 

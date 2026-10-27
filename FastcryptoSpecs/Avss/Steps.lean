@@ -52,6 +52,10 @@ structure Api (Party : Type) where
   /-- `SharesForNode::verify(message, share_ids_of(i), i)`: the shares are the ones party `i`
   should hold according to the dealer's (Feldman) commitment in the message. -/
   verifyShares : Message → (i : Party) → Shares → Bool
+  /-- `avss::Dealer`. -/
+  Dealer : Type
+  /-- `Dealer::create_message(rng)`: the messages it can return, over all `rng`s. -/
+  createMessage : Dealer → Set Message
 
 variable {Party : Type} [DecidableEq Party]
 
@@ -90,5 +94,9 @@ structure Contracts (S : Setup Party) (A : Api Party) : Prop where
     ∃ o, A.recover i m vs = some o
   /-- `recover` only returns valid shares (its final `verify` call). -/
   recover_sound : ∀ i m (vs : List A.Verified) o, A.recover i m vs = some o → A.ValidOutput m i o
+  /-- `create_message` + `process_message`: every receiver gets `Valid` on a message created by
+  `create_message` (for receivers set up with the same nodes, parameters, session id and
+  `commitment` as the dealer). -/
+  create_valid : ∀ d m i, m ∈ A.createMessage d → ∃ o, A.processMessage i m = .valid o
 
 end FastcryptoSpecs.Avss

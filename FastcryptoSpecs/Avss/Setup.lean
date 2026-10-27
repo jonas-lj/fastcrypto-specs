@@ -43,6 +43,11 @@ lemma honest_signers_weight [DecidableEq Party] (S : Setup Party) (signers corru
   unfold weightOf at *
   omega
 
+/-- The weights of a set and of its complement add up to the total weight. -/
+lemma weightOf_add_compl [Fintype Party] [DecidableEq Party] (S : Setup Party)
+    (A : Finset Party) : S.weightOf A + S.weightOf Aᶜ = ∑ i, S.weight i :=
+  Finset.sum_add_sum_compl A S.weight
+
 end Setup
 
 end FastcryptoSpecs.Avss
