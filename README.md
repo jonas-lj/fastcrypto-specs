@@ -18,7 +18,7 @@ We do not translate Rust into Lean. For each building block:
 The theorems hold for any implementation that satisfies the contracts, so nothing depends on a
 faithful translation. The trust boundary is the set of hypotheses of each theorem: function
 contracts, caller obligations and environment assumptions. Each one is documented on its Lean
-declaration, together with how it is checked.
+declaration.
 
 What this does not give: a proof that the Rust code satisfies its contracts, or that the caller
 meets its obligations. That rests on the checks in step 3.

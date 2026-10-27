@@ -4,9 +4,8 @@
 Specification of Shamir secret sharing as implemented by `Poly<S>` in
 `fastcrypto-tbls/src/polynomial.rs`.
 
-`Api` lists the Rust functions as black boxes. `Contracts` states what we expect from them; each
-field documents the assumption and how it is checked against the Rust code ("Check: test" or
-"Check: review"). The theorems are proved from `Contracts` alone.
+`Api` lists the Rust functions as black boxes. `Contracts` states what we expect from them. The
+theorems are proved from `Contracts` alone.
 -/
 import Mathlib
 
@@ -49,55 +48,30 @@ structure Api (F : Type) where
 
 variable {F : Type} [Field F]
 
-/-- What we expect from the Rust functions. Each field relates one or two of them. -/
+/-- What we expect from the Rust functions. -/
 structure Contracts (A : Api F) : Prop where
-  /-- Every polynomial `rand_fixed_c0(d, s)` can return has `c0() == s`.
-
-  Check: test. No test today. -/
+  /-- `rand_fixed_c0(d, s).c0() = s` for all `d`, `s`. -/
   rand_c0 : ∀ d s p, p ∈ (A.randFixedC0 d s).support → A.c0 p = s
-  /-- Every polynomial `rand_fixed_c0(d, s)` can return has `degree_bound() == d`.
-
-  Check: test. Partly tested today: `test_degree_bound` covers `rand`, not `rand_fixed_c0`. -/
+  /-- `rand_fixed_c0(d, s).degree_bound() = d` for all `d`, `s`. -/
   rand_degree : ∀ d s p, p ∈ (A.randFixedC0 d s).support → A.degreeBound p = d
-  /-- `p.eval(i).index == i` for every polynomial `p` and share index `i`.
-
-  Check: test. No test today. -/
+  /-- `p.eval(i).index = i`. -/
   eval_index : ∀ p i, (A.eval p i).index = i
-  /-- `(p + q).eval(i).value == p.eval(i).value + q.eval(i).value` for all `p`, `q`, `i`,
-  including polynomials of different degree bounds.
-
-  Check: test. Partly tested today: the `add` test checks one index, for degrees 3 and 5. -/
+  /-- `(p + q).eval(i) = p.eval(i) + q.eval(i)`, also when `p` and `q` have different degrees. -/
   add_eval : ∀ p q i, (A.eval (A.add p q) i).value = (A.eval p i).value + (A.eval q i).value
-  /-- `(p + q).c0() == p.c0() + q.c0()` for all `p`, `q`.
-
-  Check: test. No test today. -/
+  /-- `(p + q).c0() = p.c0() + q.c0()`. -/
   add_c0 : ∀ p q, A.c0 (A.add p q) = A.c0 p + A.c0 q
-  /-- `(p + q).degree_bound() == max(p.degree_bound(), q.degree_bound())` for all `p`, `q`.
-
-  Check: test. No test today. -/
+  /-- `(p + q).degree_bound() = max(p.degree_bound(), q.degree_bound())`. -/
   add_degree : ∀ p q, A.degreeBound (A.add p q) = max (A.degreeBound p) (A.degreeBound q)
-  /-- For every `t`, every polynomial `p` with `degree_bound() < t`, and every list `idx` of
-  exactly `t` distinct share indices, `recover_c0(t, idx.map(|i| p.eval(i)))` returns `Ok(p.c0())`.
-  In particular it does not panic or return `Err` on such inputs.
-
-  Check: test. Partly tested today: `test_recover_c0` only uses `degree_bound() == t - 1`. -/
+  /-- `recover_c0(t, [p.eval(i₁), …, p.eval(iₜ)]) = Ok(p.c0())` if `p.degree_bound() < t` and
+  `i₁, …, iₜ` are distinct. -/
   recover_c0 : ∀ t p (idx : List ShareIndex), A.degreeBound p < t → idx.Nodup →
     idx.length = t → A.recoverC0 t (idx.map (A.eval p)) = .ok (A.c0 p)
-  /-- For every `d`, `s` and every polynomial `q` with `degree_bound() ≤ d`, the distribution of
-  `rand_fixed_c0(d, s) + q` equals the distribution of `rand_fixed_c0(d, s + q.c0())`.
-
-  This holds when `rand_fixed_c0` samples the coefficients of degree `1..=d` uniformly and
-  independently, i.e. when `S::rand` is uniform.
-
-  Check: review. It is a property of the randomness, which unit tests cannot establish. -/
+  /-- `rand_fixed_c0(d, s) + q` and `rand_fixed_c0(d, s + q.c0())` have the same distribution if
+  `q.degree_bound() ≤ d`. -/
   rand_shift : ∀ d s q, A.degreeBound q ≤ d →
     (A.randFixedC0 d s).map (fun p => A.add p q) = A.randFixedC0 d (s + A.c0 q)
-  /-- For every `t`, every value `c`, and every list `idx` of fewer than `t` share indices, some
-  polynomial `q` has `degree_bound() ≤ t - 1`, `c0() == c`, and `q.eval(i).value == 0` for every
-  `i` in `idx`. For example `q = c · ∏ₖ (1 - x / iₖ)`.
-
-  Check: test, by constructing `q` from its coefficients and checking the three properties. No
-  test today. -/
+  /-- For any `c` and `i₁, …, iₖ` with `k < t`, there is a `q` with `q.degree_bound() ≤ t - 1`,
+  `q.c0() = c` and `q.eval(iⱼ) = 0` for all `j`. -/
   vanishing_exists : ∀ (t : ℕ) (c : F) (idx : List ShareIndex), idx.length < t →
     ∃ q, A.degreeBound q ≤ t - 1 ∧ A.c0 q = c ∧ ∀ i ∈ idx, (A.eval q i).value = 0
 
