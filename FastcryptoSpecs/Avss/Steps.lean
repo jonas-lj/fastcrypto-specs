@@ -7,6 +7,7 @@ the protocol proof only uses `Contracts`, which relate the functions to each oth
 should be checked against the Rust code (see README).
 -/
 import FastcryptoSpecs.Avss.Setup
+import FastcryptoSpecs.Shamir
 
 namespace FastcryptoSpecs.Avss
 
@@ -56,6 +57,17 @@ structure Api (Party : Type) where
   Dealer : Type
   /-- `Dealer::create_message(rng)`: the messages it can return, over all `rng`s. -/
   createMessage : Dealer → Set Message
+  /-- The scalar field. -/
+  F : Type
+  [instField : Field F]
+  /-- `Poly<S>` and its API, as specified in `FastcryptoSpecs.Shamir`. -/
+  Sh : Shamir.Api F
+  /-- `Nodes::share_ids_of(i)`. -/
+  shareIds : Party → List Shamir.ShareIndex
+  /-- The `shares` field of `SharesForNode`. -/
+  shareList : Shares → List (Shamir.Eval F)
+
+attribute [instance] Api.instField
 
 variable {Party : Type} [DecidableEq Party]
 
@@ -98,5 +110,13 @@ structure Contracts (S : Setup Party) (A : Api Party) : Prop where
   `create_message` (for receivers set up with the same nodes, parameters, session id and
   `commitment` as the dealer). -/
   create_valid : ∀ d m i, m ∈ A.createMessage d → ∃ o, A.processMessage i m = .valid o
+  /-- Feldman commitments are binding: for a message that is not rejected outright, there is a
+  polynomial of degree bound below `t` such that shares passing `SharesForNode::verify` for party
+  `j` are exactly its evaluations at `j`'s share indices. (The commitment fixes the polynomial
+  "in the exponent", `verify_message` checks its degree, and `verify` checks the indices and each
+  value.) -/
+  feldman_binding : ∀ i m, A.processMessage i m ≠ .invalid →
+    ∃ p, A.Sh.degreeBound p < S.t ∧
+      ∀ j sh, A.verifyShares m j sh = true → A.shareList sh = (A.shareIds j).map (A.Sh.eval p)
 
 end FastcryptoSpecs.Avss

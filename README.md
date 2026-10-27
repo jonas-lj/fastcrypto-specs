@@ -103,6 +103,7 @@ knapsack_weight_reduction.rs documents. Instead the reduction guarantees honest 
 | `recover_complete` | `recover` succeeds on verified responses from distinct responders of weight `≥ t` |
 | `recover_sound` | `recover` only returns shares that pass `SharesForNode::verify` (its final check) |
 | `create_valid` | every receiver gets `Valid` on a message from `create_message` (same nodes, parameters, session id and `commitment` as the dealer) |
+| `feldman_binding` | for a message not rejected outright, some polynomial of degree bound `< t` (a Shamir `Poly`) has the property that shares passing `SharesForNode::verify` for party `j` are exactly its evaluations at `j`'s share indices. Holds because the Feldman commitment fixes the polynomial in a prime-order group, `verify_message` checks the degree, and `verify` checks indices and values. Not unit-testable as stated (it is an existence claim); check by review. |
 
 ### Protocol assumptions (`Protocol.lean`)
 
@@ -150,11 +151,18 @@ output computed from the old message, and processes the certified one.
 
 Suggestion for fastcrypto: state both obligations in the docs of `Receiver::process_message`.
 
+### Agreement (`Agreement.lean`)
+
+| Theorem | Statement |
+|---|---|
+| `honest_outputs_agree` | For a certified message, one polynomial `p` of degree bound `< t` describes every honest output: each consists of `p`'s evaluations at that receiver's share indices. |
+| `honest_shares_recover_same_secret` | Any `t` shares held by honest receivers, at distinct indices, recover `p.c0()` (via the Shamir `recover_c0` contract): all honest parties agree on the secret. |
+
+Both use only `BasicRun`, so they hold whether shares came straight from the dealer or through
+complaints. They rely on the contract `feldman_binding`, which links AVSS to the Shamir spec.
+
 ### Not covered yet
 
-* That all honest receivers' shares fit one polynomial of degree `t - 1`, i.e. any `t` of them
-  recover the same secret. This needs a contract linking `SharesForNode::verify` to the Shamir
-  spec (Feldman commitments).
 * Consistency of the hypotheses: a concrete execution satisfying `Run`, to show the theorem is not
   vacuous.
 * `complete_dkg`, key rotation, and batch AVSS with AVID.
