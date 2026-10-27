@@ -107,19 +107,31 @@ verified responses, at most one per responder.
 | `response_delivered`: responses between honest parties arrive and are collected if verified | network assumption |
 | `recovers`: an accuser calls `recover` once it succeeds | yes |
 
-### Open questions found by the model
+### Obligations not stated in avss.rs, and how Hashi meets them
 
-1. **Getting the certified message.** A corrupt dealer can withhold its message from an honest
-   receiver and still collect `t + f` signatures from others. That receiver then cannot process
-   the message or complain, since a complaint needs the ciphertext. The model assumes the caller
-   gets the certified message to every honest receiver, e.g. because it is posted with the
-   certificate or fetched from a signer. avss.rs does not say how.
-2. **Equivocation.** A corrupt dealer can send different messages to different receivers. The model
-   assumes an honest receiver processes the *certified* message even if it first received another
-   one. avss.rs says receivers sign at most one message per dealer and accept the first
-   certificate, but not that they must then process the certified message.
+The model needs two caller obligations that the avss.rs docs do not state:
 
-Both are about the caller (e.g. Hashi), not about fastcrypto's functions.
+1. **Getting the certified message** (`gets_message`). A corrupt dealer can withhold its message
+   from an honest receiver and still collect `t + f` signatures from others; without the message
+   the receiver can neither process it nor complain.
+2. **Processing the certified message after equivocation.** A corrupt dealer can send different
+   messages to different receivers; an honest receiver must process the one that was certified.
+
+Hashi (`origin/main` at `0181e0c9d`, 2026-10-26) meets both in `run_dkg_as_party`
+(`crates/hashi/src/mpc/mpc_except_signing.rs`): when a certificate arrives on the TOB and the
+receiver's stored message for that dealer is missing *or has a different hash* than the
+certificate's `messages_hash`, it retrieves the message from the certificate's signers, drops any
+output computed from the old message, and processes the certified one.
+
+* Retrieval (`hedged_retrieve`) accepts a response only if it hashes to the certified
+  `messages_hash` (`rpc/response_checks.rs::certified_retrieval`, `message_cache.rs::certified`),
+  so corrupt signers cannot substitute a message.
+* Signers persist the message before signing it (`persist_and_cache_dkg_entry` before
+  `sign_dkg_message`), and the honest signers have weight `≥ t ≥ 1`, so some signer can serve it.
+* Retrieval asks each signer a bounded number of times. If all fail, the DKG run fails and
+  `service.rs` retries the whole MPC protocol after a sleep, which is what makes "eventually" hold.
+
+Suggestion for fastcrypto: state both obligations in the docs of `Receiver::process_message`.
 
 ### Not covered yet
 
