@@ -9,6 +9,30 @@ The specs assume that every contract holds. Whether the Rust code satisfies its 
 caller such as Hashi meets its obligations, is checked elsewhere (tests, model checking, review)
 and is not recorded here.
 
+## What belongs here
+
+The specs are meant to cover much of fastcrypto, so every declaration has to earn its maintenance
+cost. Add something only if it gives an assurance that tests and human review cannot give easily:
+
+- **Theorems about all executions or all inputs.** Liveness and agreement of a protocol over every
+  order of events and every behaviour of the corrupt parties, or properties of a distribution such
+  as Shamir privacy. Tests only see the cases they run.
+- **Composition.** Properties that follow from several building blocks together (e.g. DKG from
+  AVSS and Shamir), where a reviewer would have to keep many functions and assumptions in mind at
+  once.
+- **Explicit assumptions.** Writing down exactly what a theorem needs from the code, the caller and
+  the network. This is often the main insight: it shows what a caller like Hashi must do.
+
+Leave out what does not add such an assurance:
+
+- Restatements of a single contract, or theorems a reviewer can check at a glance, unless another
+  theorem builds on them.
+- Anything the checks of the contracts already give, e.g. example instances showing that the
+  assumptions are consistent (the Rust code satisfying its contracts already shows that).
+- Notes on how a contract is checked or how a caller meets its obligations. They belong with the
+  checks and change with the code; here they would go stale.
+- Duplicate statements of the same fact. Define it once and refer to it.
+
 ## Structure
 
 1. One file per building block, in this order: `Api` (the Rust functions as black boxes),

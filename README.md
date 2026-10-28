@@ -20,7 +20,10 @@ faithful translation. The trust boundary is the set of hypotheses of each theore
 contracts, caller obligations and environment assumptions. Each one is documented on its Lean
 declaration.
 
-See [STYLE.md](STYLE.md) for how the specs are written.
+The specs are kept minimal so that they stay maintainable as they grow: something is added only if
+it gives an assurance that tests and human review cannot give easily, such as a protocol property
+over all executions, a property of a distribution, or a result about how several building blocks
+compose. See [STYLE.md](STYLE.md) for what belongs here and how the specs are written.
 
 What this does not give: a proof that the Rust code satisfies its contracts, or that the caller
 meets its obligations. That rests on the checks in step 3.
