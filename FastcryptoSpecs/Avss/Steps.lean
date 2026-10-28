@@ -93,38 +93,39 @@ responder and response. -/
 def Api.IsVerified (A : Api Party) (i : Party) (m : A.Message) (v : A.Verified) : Prop :=
   ∃ j r, A.verifyComplaintResponse i m j r = some v
 
-/-- What we expect from the Rust functions. `f_i(…)` is `f` run by receiver `i`, and
-`verify_i(m, sh)` is `sh.verify(m, share_ids_of(i), i)`. Several contracts rely on all receivers
-being configured alike (see `Api`). -/
+/-- What we expect from the Rust functions. `Rᵢ` is party `i`'s `Receiver`. Several contracts rely
+on all receivers being configured alike (see `Api`). -/
 structure Contracts (S : Setup Party) (A : Api Party) : Prop where
-  /-- `process_message_i(m) = Valid(o)` ⇒ `verify_i(m, o.my_shares)`. -/
+  /-- `Rᵢ.process_message(m) = Valid(o)` ⇒ `o.my_shares.verify(m, share_ids_of(i), i)` is `Ok`. -/
   process_valid : ∀ i m o, A.processMessage i m = .valid o → A.ValidOutput m i o
-  /-- `process_message_i(m) = Err` ⇔ `process_message_j(m) = Err`. -/
+  /-- `Rᵢ.process_message(m) = Err` ⇔ `Rⱼ.process_message(m) = Err`. -/
   process_invalid_iff : ∀ i j m,
     A.processMessage i m = .invalid ↔ A.processMessage j m = .invalid
-  /-- `process_message_i(m) = Complaint(c)` and `process_message_j(m) = Valid(o)` ⇒
-  `handle_complaint_j(m, i, c, o) = Ok(r)` for some `r`. -/
+  /-- `Rᵢ.process_message(m) = Complaint(c)` and `Rⱼ.process_message(m) = Valid(o)` ⇒
+  `Rⱼ.handle_complaint(m, i, c, o) = Ok(r)` for some `r`. -/
   handle_accepts : ∀ i j m c o, A.processMessage i m = .complaint c →
     A.processMessage j m = .valid o → ∃ r, A.handleComplaint j m i c o = some r
-  /-- `process_message_j(m) = Valid(o)` and `handle_complaint_j(m, i, c, o) = Ok(r)` ⇒
-  `verify_complaint_response_i(m, j, r) = Ok(v)` for some `v`. -/
+  /-- `Rⱼ.process_message(m) = Valid(o)` and `Rⱼ.handle_complaint(m, i, c, o) = Ok(r)` ⇒
+  `Rᵢ.verify_complaint_response(m, j, r) = Ok(v)` for some `v`. -/
   response_verifies : ∀ i j m c o r, A.processMessage j m = .valid o →
     A.handleComplaint j m i c o = some r → ∃ v, A.verifyComplaintResponse i m j r = some v
-  /-- `verify_complaint_response_i(m, j, r) = Ok(v)` ⇒ `v.responder_id = j`. -/
+  /-- `Rᵢ.verify_complaint_response(m, j, r) = Ok(v)` ⇒ `v.responder_id = j`. -/
   verify_binds : ∀ i m j r v, A.verifyComplaintResponse i m j r = some v → A.responderId v = j
-  /-- `process_message_i(m) ≠ Err`, each `v ∈ vs` is returned by
-  `verify_complaint_response_i(m, …)`, and the responders of `vs` are distinct with total weight
-  `≥ t` ⇒ `recover_i(m, vs) = Ok(o)` for some `o`. -/
+  /-- `Rᵢ.process_message(m) ≠ Err`, each `v ∈ vs` is returned by
+  `Rᵢ.verify_complaint_response(m, …)`, and the responders of `vs` are distinct with total weight
+  `≥ t` ⇒ `Rᵢ.recover(m, vs) = Ok(o)` for some `o`. -/
   recover_complete : ∀ i m (vs : List A.Verified), A.processMessage i m ≠ .invalid →
     (∀ v ∈ vs, A.IsVerified i m v) → (vs.map A.responderId).Nodup →
     S.t ≤ S.weightOf (vs.map A.responderId).toFinset →
     ∃ o, A.recover i m vs = some o
-  /-- `recover_i(m, vs) = Ok(o)` ⇒ `verify_i(m, o.my_shares)`. -/
+  /-- `Rᵢ.recover(m, vs) = Ok(o)` ⇒ `o.my_shares.verify(m, share_ids_of(i), i)` is `Ok`. -/
   recover_sound : ∀ i m (vs : List A.Verified) o, A.recover i m vs = some o → A.ValidOutput m i o
-  /-- `m ∈ create_message(d)` ⇒ `process_message_i(m) = Valid(o)` for some `o`, for every `i`. -/
+  /-- `m` can be returned by `d.create_message()` ⇒ `Rᵢ.process_message(m) = Valid(o)` for some
+  `o`, for every `i`. -/
   create_valid : ∀ d m i, m ∈ A.createMessage d → ∃ o, A.processMessage i m = .valid o
-  /-- `process_message_i(m) ≠ Err` ⇒ there is a `p` with `p.degree_bound() < t` such that
-  `verify_j(m, sh)` ⇒ `sh.shares = [p.eval(k) for k in share_ids_of(j)]`, for all `j`, `sh`. -/
+  /-- `Rᵢ.process_message(m) ≠ Err` ⇒ there is a `p` with `p.degree_bound() < t` such that, for
+  all `j` and `sh`, `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒
+  `sh.shares = [p.eval(k) for k in share_ids_of(j)]`. -/
   feldman_binding : ∀ i m, A.processMessage i m ≠ .invalid →
     ∃ p, A.Sh.degreeBound p < S.t ∧
       ∀ j sh, A.verifyShares m j sh = true → A.shareList sh = (A.shareIds j).map (A.Sh.eval p)
