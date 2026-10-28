@@ -3,7 +3,7 @@ The AVSS functions of fastcrypto-tbls/src/threshold_schnorr/avss.rs as black box
 what we expect from them (`Contracts`).
 -/
 import FastcryptoSpecs.Avss.Setup
-import FastcryptoSpecs.Shamir
+import FastcryptoSpecs.Shamir.Steps
 
 namespace FastcryptoSpecs.Avss
 

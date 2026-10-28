@@ -3,6 +3,7 @@ DKG from AVSS: every honest party combines the outputs of the same certified dea
 `AvssOutput::complete_dkg`, and the combined shares are shares of the sum of the dealers' secrets.
 -/
 import FastcryptoSpecs.Avss.Agreement
+import FastcryptoSpecs.Shamir.Dkg
 
 namespace FastcryptoSpecs.Avss
 
