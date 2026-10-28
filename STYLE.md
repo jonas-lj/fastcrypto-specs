@@ -46,8 +46,10 @@ Leave out what does not add such an assurance:
 
 ## Naming
 
-4. `Api` fields are the Rust function names in camelCase. Their docs give the Rust call they stand
-   for (e.g. `` `Receiver::process_message(message)`, run by receiver `i`. ``).
+4. `Api` fields are the Rust function names in camelCase. Each doc starts with the full Rust path
+   of the item it stands for, in backticks, followed by any notes, e.g.
+   `` `fastcrypto_tbls::polynomial::Poly::eval`. ``. This lets tools find the code that a contract
+   is about.
 5. Contract and assumption fields are named after what they state (`recover_sound`,
    `process_invalid_iff`, `gets_message`), not numbered.
 

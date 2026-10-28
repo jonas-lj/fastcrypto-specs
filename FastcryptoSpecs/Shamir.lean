@@ -11,10 +11,11 @@ import Mathlib
 
 namespace FastcryptoSpecs.Shamir
 
-/-- `types::ShareIndex = NonZeroU16`: a natural number in `[1, 2^16)`. -/
+/-- `fastcrypto_tbls::types::ShareIndex` (`NonZeroU16`): a natural number in `[1, 2^16)`. -/
 abbrev ShareIndex := { i : ℕ // 0 < i ∧ i < 2 ^ 16 }
 
-/-- `polynomial::Eval<C>`: a share, i.e. a value together with the share index it belongs to. -/
+/-- `fastcrypto_tbls::polynomial::Eval`: a share, i.e. a value together with the share index it
+belongs to. -/
 @[ext]
 structure Eval (F : Type) where
   index : ShareIndex
@@ -29,21 +30,24 @@ inductive Error where
 
 The functions are total and pure. Field arithmetic is exact. -/
 structure Api (F : Type) where
-  /-- `Poly<S>`. -/
+  /-- `fastcrypto_tbls::polynomial::Poly`, for scalars. -/
   Poly : Type
-  /-- `Poly::c0`: the constant term, i.e. the shared secret. -/
+  /-- `fastcrypto_tbls::polynomial::Poly::c0`: the constant term, i.e. the shared secret. -/
   c0 : Poly → F
-  /-- `Poly::degree_bound`: the length of the coefficient vector minus one. -/
+  /-- `fastcrypto_tbls::polynomial::Poly::degree_bound`: the length of the coefficient vector minus
+  one. -/
   degreeBound : Poly → ℕ
-  /-- `Poly::rand_fixed_c0(degree, c0, rng)`: the distribution of the polynomial it returns, over
-  the randomness of `rng`. "`p` can be returned" means `p ∈ (randFixedC0 d s).support`. -/
+  /-- `fastcrypto_tbls::polynomial::Poly::rand_fixed_c0`: the distribution of the polynomial it
+  returns, over the randomness of `rng`. "`p` can be returned" means
+  `p ∈ (randFixedC0 d s).support`. -/
   randFixedC0 : (degree : ℕ) → (c0 : F) → PMF Poly
-  /-- `Poly::eval(i)`. -/
+  /-- `fastcrypto_tbls::polynomial::Poly::eval`. -/
   eval : Poly → ShareIndex → Eval F
-  /-- `impl Add<&Poly<C>> for Poly<C>` (implemented with `AddAssign`). -/
+  /-- `fastcrypto_tbls::polynomial::Poly::add` (`impl Add<&Poly<C>> for Poly<C>`). -/
   add : Poly → Poly → Poly
-  /-- `Poly::recover_c0(t, shares)`. `Err` is `.error`; a panic cannot be represented, so a
-  contract saying it returns `.ok` also claims that it does not panic on those inputs. -/
+  /-- `fastcrypto_tbls::polynomial::Poly::recover_c0`. `Err` is `.error`; a panic cannot be
+  represented, so a contract saying it returns `.ok` also claims that it does not panic on those
+  inputs. -/
   recoverC0 : (t : ℕ) → List (Eval F) → Except Error F
 
 variable {F : Type} [Field F]

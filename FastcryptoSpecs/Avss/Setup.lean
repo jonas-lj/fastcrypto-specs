@@ -9,22 +9,24 @@ namespace FastcryptoSpecs.Avss
 /-- The node weights of `Nodes` and the thresholds `t`, `f` of `Parameters`. The parties are the
 elements of a finite type `Party` (the node ids `0..n` of `Nodes`). -/
 structure Setup (Party : Type) where
-  /-- Weight of each party: the number of share indices it holds (`Nodes::share_ids_of`). -/
+  /-- `fastcrypto_tbls::nodes::Node::weight`: the number of share indices the party holds. -/
   weight : Party → ℕ
-  /-- Threshold `t`: shares at `t` distinct indices determine the secret. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::Parameters::t`: shares at `t` distinct indices
+  determine the secret. -/
   t : ℕ
-  /-- Maximum total weight of Byzantine parties, `f`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::Parameters::f`: the maximum total weight of
+  Byzantine parties. -/
   f : ℕ
 
 namespace Setup
 
 variable {Party : Type}
 
-/-- Total weight of a set of parties (`Nodes::total_weight_of`). -/
+/-- `fastcrypto_tbls::nodes::Nodes::total_weight_of`: the total weight of a set of parties. -/
 def weightOf (S : Setup Party) (A : Finset Party) : ℕ := ∑ i ∈ A, S.weight i
 
-/-- The checks of `Parameters::validate(W)`, where `W` is the total weight. (`validate` also
-rejects `f = 0`; no theorem here needs that.) -/
+/-- The checks of `fastcrypto_tbls::threshold_schnorr::Parameters::validate(W)`, where `W` is the
+total weight. (`validate` also rejects `f = 0`; no theorem here needs that.) -/
 structure Valid [Fintype Party] (S : Setup Party) : Prop where
   /-- `t < W`. -/
   t_lt_W : S.t < ∑ i, S.weight i

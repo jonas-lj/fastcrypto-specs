@@ -29,50 +29,54 @@ All receivers are configured alike: the same `Nodes`, `Parameters`, session id a
 and each receiver's encryption key matches its public key in `Nodes`. Several contracts rely on
 this; they say so. -/
 structure Api (Party : Type) where
-  /-- `avss::Message`: the dealer's broadcast (Feldman commitment and encrypted shares). -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Message`: the dealer's broadcast (Feldman
+  commitment and encrypted shares). -/
   Message : Type
-  /-- `avss::Complaint`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Complaint`. -/
   Complaint : Type
-  /-- `avss::ComplaintResponse`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::ComplaintResponse`. -/
   Response : Type
-  /-- `avss::VerifiedComplaintResponse`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::VerifiedComplaintResponse`. -/
   Verified : Type
-  /-- `avss::AvssOutput`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::AvssOutput`. -/
   Output : Type
-  /-- `avss::SharesForNode`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::SharesForNode`. -/
   Shares : Type
-  /-- `Receiver::process_message(message)`, run by receiver `i`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Receiver::process_message`, run by receiver `i`. -/
   processMessage : (i : Party) → Message → Processed Output Complaint
-  /-- `Receiver::handle_complaint(message, accuser, complaint, my_output)`, run by `j` with its
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Receiver::handle_complaint`, run by `j` with its
   own output. `none` is an `Err`. -/
   handleComplaint : (j : Party) → Message → (accuser : Party) → Complaint → Output →
     Option Response
-  /-- `Receiver::verify_complaint_response(message, responder, response)`, run by the accuser `i`.
-  `none` is an `Err`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Receiver::verify_complaint_response`, run by the
+  accuser `i`. `none` is an `Err`. -/
   verifyComplaintResponse : (i : Party) → Message → (responder : Party) → Response →
     Option Verified
-  /-- The `responder_id` field of `VerifiedComplaintResponse`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::VerifiedComplaintResponse::responder_id`. -/
   responderId : Verified → Party
-  /-- `Receiver::recover(message, responses)`, run by the accuser `i`. `none` is an `Err`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Receiver::recover`, run by the accuser `i`. `none`
+  is an `Err`. -/
   recover : (i : Party) → Message → List Verified → Option Output
-  /-- The `my_shares` field of `AvssOutput`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::AvssOutput::my_shares`. -/
   shares : Output → Shares
-  /-- `SharesForNode::verify(message, share_ids_of(i), i).is_ok()`: the share indices are exactly
-  `share_ids_of(i)`, in order, and each share is consistent with the message's Feldman
-  commitment. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::SharesForNode::verify` with `share_ids_of(i)` and
+  `i`, `is_ok()`: the share indices are exactly `share_ids_of(i)`, in order, and each share is
+  consistent with the message's Feldman commitment. -/
   verifyShares : Message → (i : Party) → Shares → Bool
-  /-- `avss::Dealer`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Dealer`. -/
   Dealer : Type
-  /-- `Dealer::create_message(rng)`: the messages it can return, over all `rng`s. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Dealer::create_message`: the messages it can
+  return, over all `rng`s. -/
   createMessage : Dealer → Set Message
-  /-- The scalar field. -/
+  /-- The scalar field, `fastcrypto_tbls::threshold_schnorr::S`. -/
   F : Type
   [instField : Field F]
-  /-- `Poly<S>` and its API, as specified in `FastcryptoSpecs.Shamir`. -/
+  /-- `fastcrypto_tbls::polynomial::Poly` over `S` and its API, as specified in
+  `FastcryptoSpecs.Shamir`. -/
   Sh : Shamir.Api F
-  /-- `Nodes::share_ids_of(i)`. -/
+  /-- `fastcrypto_tbls::nodes::Nodes::share_ids_of`. -/
   shareIds : Party → List Shamir.ShareIndex
-  /-- The `shares` field of `SharesForNode`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::SharesForNode::shares`. -/
   shareList : Shares → List (Shamir.Eval F)
 
 attribute [instance] Api.instField

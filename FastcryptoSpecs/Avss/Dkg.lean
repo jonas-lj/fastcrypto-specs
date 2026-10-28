@@ -11,12 +11,12 @@ namespace FastcryptoSpecs.Avss
 One `Api` covers the AVSS instances of all dealers. Its contracts quantify over all messages, so
 they apply to each instance; each instance has its own session id, on which its receivers agree. -/
 structure DkgApi (Party : Type) (A : Api Party) where
-  /-- `avss::DkOutput`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::DkOutput`. -/
   DkOutput : Type
-  /-- `AvssOutput::complete_dkg(t, nodes, outputs)`, with the map `outputs` from dealer id to that
-  dealer's `AvssOutput` given as a list of pairs. `none` is an `Err`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::DkOutput::complete_dkg`, with the map `outputs`
+  from dealer id to that dealer's `AvssOutput` given as a list of pairs. `none` is an `Err`. -/
   completeDkg : List (Party × A.Output) → Option DkOutput
-  /-- The `my_shares` field of `DkOutput`. -/
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::DkOutput::my_shares`. -/
   shares : DkOutput → A.Shares
 
 variable {Party : Type} [DecidableEq Party]
