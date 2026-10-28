@@ -9,11 +9,9 @@ namespace FastcryptoSpecs.Avss
 variable {Party : Type} [Fintype Party] [DecidableEq Party]
   {S : Setup Party} {A : Api Party}
 
-/-- Under `hS`, `hA`, `hcorrupt` and `hcert` (as in `every_honest_party_gets_valid_shares`),
-`process_message` does not return `Err` for any party on the certified message `m`: some honest
-signer got `Valid` on it, and rejection is the same for all receivers. -/
+/-- `process_message` does not return `Err` for any party on the certified message `m`. -/
 lemma certified_not_invalid (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
-    (hcorrupt : S.weightOf corrupt ≤ S.f) {m : A.Message} {signers : Finset Party}
+    (hcorrupt : S.Tolerates corrupt) {m : A.Message} {signers : Finset Party}
     (hcert : Certificate S A corrupt m signers) (i : Party) :
     A.processMessage i m ≠ .invalid := by
   have hH : S.t ≤ S.weightOf (signers.filter (· ∉ corrupt)) :=
@@ -31,20 +29,11 @@ lemma certified_not_invalid (hS : S.Valid) (hA : Contracts S A) {corrupt : Finse
   rw [(hA.process_invalid_iff i j m).mp hinv] at ho
   cases ho
 
-/-- **Agreement.** Assume:
-* `hS`: the parameters pass `Parameters::validate`;
-* `hA`: the fastcrypto functions satisfy their contracts;
-* `hcorrupt`: the Byzantine parties `corrupt` have total weight at most `f`;
-* `hcert`: honest receivers accept a certificate for message `m` from `signers`;
-* `hrun`: the execution `σ` meets the assumptions of `BasicRun`. None of the complaint assumptions
-  of `Run` are needed.
-
-Then there is a polynomial `p` with `degree_bound() < t` such that, at every time `n`, every
-output `o` held by an honest party `i` has shares equal to `p.eval(k)` for `k` in
-`share_ids_of(i)`, in order. This holds whether `o` came from `process_message` or from `recover`.
-(`i₀` is any party; it only names the receiver used to apply `feldman_binding`.) -/
+/-- **Agreement.** There is a polynomial `p` with `degree_bound() < t` such that every output `o`
+an honest party `i` holds, at any time, has shares `[p.eval(k) for k in share_ids_of(i)]`, whether
+`o` came from `process_message` or from `recover`. (`i₀` is any party.) -/
 theorem honest_outputs_agree (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
-    (hcorrupt : S.weightOf corrupt ≤ S.f) {m : A.Message} {signers : Finset Party}
+    (hcorrupt : S.Tolerates corrupt) {m : A.Message} {signers : Finset Party}
     (hcert : Certificate S A corrupt m signers) {σ : ℕ → State A}
     (hrun : BasicRun A m corrupt σ) (i₀ : Party) :
     ∃ p, A.Sh.degreeBound p < S.t ∧ ∀ i n o, i ∉ corrupt → (σ n).output i = some o →
@@ -54,14 +43,12 @@ theorem honest_outputs_agree (hS : S.Valid) (hA : Contracts S A) {corrupt : Fins
   exact ⟨p, hdeg, fun i n o hi ho =>
     hbind i _ (output_valid hA (hrun.honest n) hi ho)⟩
 
-/-- **Same secret.** Assume the hypotheses of `honest_outputs_agree`, and that the Shamir
-functions satisfy their contracts (`hSh`). Then there is a polynomial `p` such that for every list
-`es` of exactly `t` shares at distinct indices, each taken from an output that some honest party
-holds at some time, `recover_c0(t, es)` returns `Ok(p.c0())`. So all honest parties agree on the
-shared secret. -/
+/-- **Same secret.** There is a polynomial `p` such that `recover_c0(t, es) = Ok(p.c0())` for every
+list `es` of exactly `t` shares at distinct indices, each taken from an output some honest party
+holds at some time. -/
 theorem honest_shares_recover_same_secret (hS : S.Valid) (hA : Contracts S A)
     (hSh : Shamir.Contracts A.Sh) {corrupt : Finset Party}
-    (hcorrupt : S.weightOf corrupt ≤ S.f) {m : A.Message} {signers : Finset Party}
+    (hcorrupt : S.Tolerates corrupt) {m : A.Message} {signers : Finset Party}
     (hcert : Certificate S A corrupt m signers) {σ : ℕ → State A}
     (hrun : BasicRun A m corrupt σ) (i₀ : Party) :
     ∃ p, ∀ es : List (Shamir.Eval A.F),

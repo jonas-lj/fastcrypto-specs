@@ -79,9 +79,7 @@ variable {A : Api F}
 
 /-- **Dealing.** Let `t > 0` and let `p` be a polynomial that `rand_fixed_c0(t - 1, s)` can
 return. For every list `idx` of exactly `t` distinct share indices, `recover_c0` on the shares
-`p.eval(i)` for `i` in `idx` returns `Ok(s)`.
-
-Uses `rand_c0`, `rand_degree` and `recover_c0`. -/
+`p.eval(i)` for `i` in `idx` returns `Ok(s)`. -/
 theorem recover_dealt_secret (hA : Contracts A) {t : ℕ} (ht : 0 < t) {s : F} {p : A.Poly}
     (hp : p ∈ (A.randFixedC0 (t - 1) s).support) (idx : List ShareIndex) (hnodup : idx.Nodup)
     (hlen : idx.length = t) :
@@ -100,9 +98,7 @@ theorem recover_agrees (hA : Contracts A) {t : ℕ} (ht : 0 < t) {s : F} {p : A.
 /-- **Privacy.** For every list `idx` of fewer than `t` share indices and any two secrets `s`,
 `s'`: the joint distribution of the shares at `idx` of `rand_fixed_c0(t - 1, s)` equals that of
 `rand_fixed_c0(t - 1, s')`. So fewer than `t` shares reveal nothing about the secret
-(information-theoretically).
-
-Uses `vanishing_exists`, `rand_shift`, `eval_index` and `add_eval`. -/
+(information-theoretically). -/
 theorem shares_independent_of_secret (hA : Contracts A) {t : ℕ} (s s' : F)
     (idx : List ShareIndex) (hlen : idx.length < t) :
     (A.randFixedC0 (t - 1) s).map (fun p => idx.map (A.eval p)) =
@@ -160,10 +156,7 @@ lemma sumPolys_degree (hA : Contracts A) {d : ℕ} (p : A.Poly) (rest : List A.P
 /-- **DKG.** Let `t > 0` and let `dealings` be a nonempty list of pairs `(sₖ, pₖ)`, where each
 `pₖ` is a polynomial that `rand_fixed_c0(t - 1, sₖ)` can return. For every list `idx` of exactly
 `t` distinct share indices, `recover_c0` on the summed shares `Σₖ pₖ.eval(i).value` (one per `i` in
-`idx`, with index `i`) returns `Ok(Σₖ sₖ)`.
-
-Uses `add_eval`, `add_c0`, `add_degree`, `eval_index`, `rand_c0`, `rand_degree` and
-`recover_c0`. -/
+`idx`, with index `i`) returns `Ok(Σₖ sₖ)`. -/
 theorem recover_sum_of_dealings (hA : Contracts A) {t : ℕ} (ht : 0 < t)
     (dealings : List (F × A.Poly)) (hne : dealings ≠ [])
     (hdealt : ∀ d ∈ dealings, d.2 ∈ (A.randFixedC0 (t - 1) d.1).support)

@@ -33,20 +33,22 @@ structure Valid [Fintype Party] (S : Setup Party) : Prop where
   /-- `t + f ≤ W`. -/
   t_add_f_le_W : S.t + S.f ≤ ∑ i, S.weight i
 
+/-- The Byzantine parties `corrupt` have total weight at most `f`. -/
+def Tolerates (S : Setup Party) (corrupt : Finset Party) : Prop := S.weightOf corrupt ≤ S.f
+
 lemma weightOf_mono (S : Setup Party) {A B : Finset Party} (h : A ⊆ B) :
     S.weightOf A ≤ S.weightOf B :=
   Finset.sum_le_sum_of_subset h
 
 /-- If `signers` has weight at least `t + f` and `corrupt` has weight at most `f`, then the
-signers outside `corrupt` have weight at least `t` (the argument in the docs of
-`Dealer::create_message`). -/
+signers outside `corrupt` have weight at least `t`. -/
 lemma honest_signers_weight [DecidableEq Party] (S : Setup Party) (signers corrupt : Finset Party)
-    (hcert : S.t + S.f ≤ S.weightOf signers) (hcorrupt : S.weightOf corrupt ≤ S.f) :
+    (hcert : S.t + S.f ≤ S.weightOf signers) (hcorrupt : S.Tolerates corrupt) :
     S.t ≤ S.weightOf (signers.filter (· ∉ corrupt)) := by
   have hsplit := Finset.sum_filter_add_sum_filter_not signers (· ∈ corrupt) S.weight
   have hsub : S.weightOf (signers.filter (· ∈ corrupt)) ≤ S.weightOf corrupt :=
     S.weightOf_mono (fun x hx => (Finset.mem_filter.mp hx).2)
-  unfold weightOf at *
+  unfold Tolerates weightOf at *
   omega
 
 /-- The weights of a set and of its complement add up to the total weight `W`. -/

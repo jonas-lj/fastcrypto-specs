@@ -90,8 +90,8 @@ def Api.IsVerified (A : Api Party) (i : Party) (m : A.Message) (v : A.Verified) 
   ∃ j r, A.verifyComplaintResponse i m j r = some v
 
 /-- What we expect from the Rust functions. `f_i(…)` is `f` run by receiver `i`, and
-`verify_i(m, sh)` is `sh.verify(m, share_ids_of(i), i)`. Several contracts rely on all receivers being configured
-alike (see `Api`). -/
+`verify_i(m, sh)` is `sh.verify(m, share_ids_of(i), i)`. Several contracts rely on all receivers
+being configured alike (see `Api`). -/
 structure Contracts (S : Setup Party) (A : Api Party) : Prop where
   /-- `process_message_i(m) = Valid(o)` ⇒ `verify_i(m, o.my_shares)`. -/
   process_valid : ∀ i m o, A.processMessage i m = .valid o → A.ValidOutput m i o

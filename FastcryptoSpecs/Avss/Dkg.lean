@@ -53,7 +53,7 @@ lemma dkgInput_fst (dealers : List Party) (out : Party → Party → A.Output) (
 
 /-- Per dealer, a polynomial of degree below `t` that every honest output fits. -/
 lemma dealer_polys (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
-    (hcorrupt : S.weightOf corrupt ≤ S.f) {dealers : List Party} (hne : dealers ≠ [])
+    (hcorrupt : S.Tolerates corrupt) {dealers : List Party} (hne : dealers ≠ [])
     {m : Party → A.Message} {signers : Party → Finset Party}
     (hcert : ∀ d ∈ dealers, Certificate S A corrupt (m d) (signers d))
     {σ : Party → ℕ → State A} (hrun : ∀ d ∈ dealers, BasicRun A (m d) corrupt (σ d)) :
@@ -69,19 +69,12 @@ lemma dealer_polys (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
   choose! p hp using h
   exact ⟨p, hp⟩
 
-/-- **DKG completes.** Assume:
-* `hS`, `hA`, `hcorrupt`: as in `every_honest_party_gets_valid_shares`;
-* `hSh`: the Shamir functions satisfy their contracts;
-* `hD`: `complete_dkg` satisfies its contracts;
-* `hcert`, `hrun`: for each dealer `d` in `dealers`, honest receivers accept a certificate for
-  message `m d` from `signers d`, and the execution `σ d` of `d`'s instance meets `BasicRun`;
-* `hout` (caller obligation): for each dealer `d` in `dealers`, every honest party `i` holds the
-  output `out i d` in `d`'s instance at some time;
-* `hne`, `hnodup`, `hweight`: `dealers` is nonempty, without repeats, and of total weight `≥ t`.
-
-Then `complete_dkg` returns `Ok` for every honest party `i` on `dkgInput dealers out i`. -/
+/-- **DKG completes.** Let `dealers` be nonempty, without repeats and of total weight `≥ t`, and
+suppose that for each dealer `d` in it, every honest party `i` holds the output `out i d` of `d`'s
+instance at some time (caller obligation). Then `complete_dkg` returns `Ok` for every honest party
+`i` on `dkgInput dealers out i`. -/
 theorem dkg_completes (hS : S.Valid) (hA : Contracts S A) (hSh : Shamir.Contracts A.Sh)
-    (hD : DkgContracts S A D) {corrupt : Finset Party} (hcorrupt : S.weightOf corrupt ≤ S.f)
+    (hD : DkgContracts S A D) {corrupt : Finset Party} (hcorrupt : S.Tolerates corrupt)
     {dealers : List Party} {m : Party → A.Message} {signers : Party → Finset Party}
     (hcert : ∀ d ∈ dealers, Certificate S A corrupt (m d) (signers d))
     {σ : Party → ℕ → State A} (hrun : ∀ d ∈ dealers, BasicRun A (m d) corrupt (σ d))
@@ -100,18 +93,15 @@ theorem dkg_completes (hS : S.Valid) (hA : Contracts S A) (hSh : Shamir.Contract
   conv_rhs => rw [← List.map_id (A.shareIds i)]
   exact List.map_congr_left fun k _ => hSh.eval_index _ k
 
-/-- **DKG agreement.** Assume the hypotheses of `dkg_completes` except `hnodup` and `hweight`.
-Then there are polynomials `p d`, one per dealer `d` in `dealers`, each with
-`degree_bound() < t`, such that whenever `complete_dkg` returns `Ok(dk)` for an honest party `i` on
-`dkgInput dealers out i`, `dk.my_shares = [(k, Σ_d (p d).eval(k).value) for k in share_ids_of(i)]`.
+/-- **DKG agreement.** Let `dealers` be nonempty, and `out` as in `dkg_completes`. There are
+polynomials `p d`, one per dealer `d` in `dealers`, each with `degree_bound() < t`, such that
+whenever `complete_dkg` returns `Ok(dk)` for an honest party `i` on `dkgInput dealers out i`,
+`dk.my_shares = [(k, Σ_d (p d).eval(k).value) for k in share_ids_of(i)]`.
 
-`p d` is the polynomial of `honest_outputs_agree` for `d`'s instance. All honest parties pass the
-same `dealers`: that is the caller obligation of `complete_dkg` that all parties use the outputs of
-the same certified dealers. Hashi meets it in `run_dkg_as_party`: it takes the dealers of the
-on-chain certificates in TOB order until their weight reaches `t`, every skipped certificate is
-skipped on on-chain data alone, and a local failure aborts the attempt instead of skipping. -/
+All honest parties pass the same `dealers`: this is the caller obligation that all parties use the
+outputs of the same certified dealers. -/
 theorem dkg_outputs_agree (hS : S.Valid) (hA : Contracts S A) (hSh : Shamir.Contracts A.Sh)
-    (hD : DkgContracts S A D) {corrupt : Finset Party} (hcorrupt : S.weightOf corrupt ≤ S.f)
+    (hD : DkgContracts S A D) {corrupt : Finset Party} (hcorrupt : S.Tolerates corrupt)
     {dealers : List Party} {m : Party → A.Message} {signers : Party → Finset Party}
     (hcert : ∀ d ∈ dealers, Certificate S A corrupt (m d) (signers d))
     {σ : Party → ℕ → State A} (hrun : ∀ d ∈ dealers, BasicRun A (m d) corrupt (σ d))
@@ -150,17 +140,13 @@ lemma sumPolys_degree_lt (hSh : Shamir.Contracts A.Sh) {t : ℕ} (p : A.Sh.Poly)
       exact max_lt hp (hrest q List.mem_cons_self)
     · exact fun q' hq' => hrest q' (List.mem_cons_of_mem _ hq')
 
-/-- **DKG: same secret.** Assume the hypotheses of `dkg_outputs_agree`. Then there are
-polynomials `p d`, one per dealer `d` in `dealers`, such that for every list `es` of exactly `t`
-shares at distinct indices, each taken from the `DkOutput` that `complete_dkg` returned to some
-honest party, `recover_c0(t, es)` returns `Ok(Σ_d (p d).c0())`.
-
-So all honest parties hold shares of one joint secret: the sum of the secrets of the dealers'
-instances (by `honest_shares_recover_same_secret`, `(p d).c0()` is what `t` honest shares of `d`'s
-instance recover). -/
+/-- **DKG: same secret.** Let `dealers` be nonempty, and `out` as in `dkg_completes`. There are
+polynomials `p d`, one per dealer `d` in `dealers`, such that `recover_c0(t, es) = Ok(Σ_d
+(p d).c0())` for every list `es` of exactly `t` shares at distinct indices, each taken from the
+`DkOutput` that `complete_dkg` returned to some honest party. -/
 theorem dkg_recover_same_secret (hS : S.Valid) (hA : Contracts S A)
     (hSh : Shamir.Contracts A.Sh) (hD : DkgContracts S A D) {corrupt : Finset Party}
-    (hcorrupt : S.weightOf corrupt ≤ S.f) {dealers : List Party} {m : Party → A.Message}
+    (hcorrupt : S.Tolerates corrupt) {dealers : List Party} {m : Party → A.Message}
     {signers : Party → Finset Party}
     (hcert : ∀ d ∈ dealers, Certificate S A corrupt (m d) (signers d))
     {σ : Party → ℕ → State A} (hrun : ∀ d ∈ dealers, BasicRun A (m d) corrupt (σ d))
