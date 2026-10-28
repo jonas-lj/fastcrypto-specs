@@ -104,8 +104,8 @@ lemma toy_recover_c0 (t : ℕ) (p : TPoly) (idx : List ShareIndex) (hdeg : p.bou
   have hs : s.card = t := by
     rw [List.toFinset_card_of_nodup (hnodup.map idxF_injective), List.length_map, hlen]
   have hg : Classical.choose hex = p.poly := by
-    refine Polynomial.eq_of_degrees_lt_of_eval_finset_eq s (by rwa [hs]) (by rw [hs]; exact p.degree_lt hdeg)
-      fun x hx => ?_
+    refine Polynomial.eq_of_degrees_lt_of_eval_finset_eq s (by rwa [hs])
+      (by rw [hs]; exact p.degree_lt hdeg) fun x hx => ?_
     obtain ⟨i, hi, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hx)
     exact hgeval _ (List.mem_map.mpr ⟨i, hi, rfl⟩)
   rw [hg]
