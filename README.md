@@ -1,6 +1,11 @@
 # fastcrypto-specs
 
-Lean specifications and proofs for fastcrypto building blocks.
+Lean specifications and proofs for fastcrypto building blocks. They serve two purposes:
+
+- **A review tool.** Every assumption is stated precisely, and the protocol reasoning built on them
+  is checked by Lean.
+- **Documentation.** The obligations on callers and the assumptions about the code and the network
+  are written down in one place, and CI checks that the theorems still follow from them.
 
 ## Approach
 
