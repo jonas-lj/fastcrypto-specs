@@ -53,5 +53,3 @@ and is not recorded here.
 
 13. Proofs are short and split into lemmas, one per step. Prefer `obtain`, `rw` and `exact` to
     large `simp` calls, so that proofs survive Mathlib upgrades and are easy to repair.
-14. Each model has a non-vacuity check: a concrete instance satisfying its contracts and
-    execution assumptions, so that the assumptions are known to be consistent.
