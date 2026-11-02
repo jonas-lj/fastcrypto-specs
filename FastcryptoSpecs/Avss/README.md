@@ -11,3 +11,5 @@ imports the one above it.
 | `HonestDealer.lean` | A dealer whose message comes from `create_message`: no complaints, certifiable when the honest weight is at least `t + f`, and corrupt parties can block certification. |
 | `Agreement.lean` | All honest outputs fit one polynomial, so any `t` honest shares recover the same secret. |
 | `Dkg.lean` | `complete_dkg` as a black box with its contracts (`DkgApi`, `DkgContracts`), and the DKG theorems: it completes, outputs agree, and they share one joint secret. |
+
+`checks.toml` records the fastcrypto revision each contract above was last checked against.

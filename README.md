@@ -16,7 +16,8 @@ We do not translate Rust into Lean. For each building block:
 2. **Contracts.** We state in Lean what we expect from them, only by relating the functions to
    each other (e.g. "`recover_c0` returns `c0` of a polynomial from `t` of its shares").
 3. **Checks.** Each contract is checked against the Rust code: unit/property tests, review
-   (LLM-assisted or not), or a model checker such as Kani.
+   (LLM-assisted or not), or a model checker such as Kani. The fastcrypto revision each contract
+   was last checked against is recorded in the folder's `checks.toml`, outside the Lean files.
 4. **Theorems.** We prove properties of how the building blocks compose, from the contracts and
    from explicit assumptions about the caller and the environment (e.g. the network).
 
@@ -40,4 +41,6 @@ lake exe cache get   # download prebuilt Mathlib
 lake build
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same build on every push and pull request.
+CI (`.github/workflows/ci.yml`) runs the same build on every push and pull request, and
+`scripts/check_contracts.py`, which checks that every contract has an entry in its folder's
+`checks.toml`.

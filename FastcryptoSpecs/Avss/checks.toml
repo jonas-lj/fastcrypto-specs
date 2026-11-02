@@ -1,0 +1,30 @@
+# Which fastcrypto revision each contract was last checked against. See STYLE.md.
+#
+# Once checked, an entry reads:
+#   [name]
+#   fastcrypto = "<commit>"   # fastcrypto revision the check ran on
+#   method = "<method>"       # proptest, kani, review or llm-review
+#   date = "<YYYY-MM-DD>"
+# An empty entry has not been checked yet.
+
+[process_valid]
+
+[process_invalid_iff]
+
+[handle_accepts]
+
+[response_verifies]
+
+[verify_binds]
+
+[recover_complete]
+
+[recover_sound]
+
+[create_valid]
+
+[feldman_binding]
+
+[complete_sum]
+
+[complete_ok]
