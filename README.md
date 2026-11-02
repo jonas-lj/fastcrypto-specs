@@ -16,8 +16,9 @@ We do not translate Rust into Lean. For each building block:
 2. **Contracts.** We state in Lean what we expect from them, only by relating the functions to
    each other (e.g. "`recover_c0` returns `c0` of a polynomial from `t` of its shares").
 3. **Checks.** Each contract is checked against the Rust code: unit/property tests, review
-   (LLM-assisted or not), or a model checker such as Kani. The fastcrypto revision each contract
-   was last checked against is recorded in the folder's `checks.toml`, outside the Lean files.
+   (LLM-assisted or not), or, where Aeneas can translate the function, a Lean proof of the
+   contract for the translation. The fastcrypto revision each contract was last checked against
+   is recorded in the folder's `checks.toml`, outside the Lean files.
 4. **Theorems.** We prove properties of how the building blocks compose, from the contracts and
    from explicit assumptions about the caller and the environment (e.g. the network).
 
@@ -32,7 +33,8 @@ over all executions, a property of a distribution, or a result about how several
 compose. See [STYLE.md](STYLE.md) for what belongs here and how the specs are written.
 
 What this does not give: a proof that the Rust code satisfies its contracts, or that the caller
-meets its obligations. That rests on the checks in step 3.
+meets its obligations. That rests on the checks in step 3, and is a proof only for contracts proved
+about an Aeneas translation.
 
 ## Build
 

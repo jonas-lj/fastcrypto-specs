@@ -6,8 +6,8 @@ read off exactly what is assumed and what is proved, without reading proofs.
 ## Scope
 
 The specs assume that every contract holds. Whether the Rust code satisfies its contracts, or a
-caller such as Hashi meets its obligations, is checked elsewhere (tests, model checking, review)
-and is not recorded in the Lean files.
+caller such as Hashi meets its obligations, is checked elsewhere (tests, review, or a Lean proof
+about an Aeneas translation) and is not recorded in the Lean files.
 
 Each folder has a `checks.toml` with one entry per contract, recording the fastcrypto revision it
 was last checked against, how, and when. An empty entry means the contract has not been checked
