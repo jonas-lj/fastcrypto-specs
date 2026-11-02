@@ -43,4 +43,4 @@ lake build
 
 CI (`.github/workflows/ci.yml`) runs the same build on every push and pull request, and
 `scripts/check_contracts.py`, which checks that every contract has an entry in its folder's
-`checks.toml`.
+`checks.toml` and warns about contracts that have not been checked yet.

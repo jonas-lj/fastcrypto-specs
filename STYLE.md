@@ -11,7 +11,8 @@ and is not recorded in the Lean files.
 
 Each folder has a `checks.toml` with one entry per contract, recording the fastcrypto revision it
 was last checked against, how, and when. An empty entry means the contract has not been checked
-yet. CI checks that the entries and the contracts match. Keeping this out of the Lean files means
+yet. CI fails if the entries and the contracts do not match, and warns about each unchecked
+contract. Keeping this out of the Lean files means
 that re-checking a contract does not change the specs, and a tool can compare the recorded
 revision with the Rust paths in the `Api` docs to find contracts whose code changed since.
 
