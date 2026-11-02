@@ -10,6 +10,9 @@
 [process_valid]
 
 [process_invalid_iff]
+fastcrypto = "5ebc9c467"
+method = "llm-review"
+date = "2026-11-02"
 
 [handle_accepts]
 
