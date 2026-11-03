@@ -20,9 +20,8 @@ variable {Party : Type} [Fintype Party] [DecidableEq Party]
 /-- The certificate for the dealer's message `m`, signed by `signers`, that every honest receiver
 accepts.
 
-Using a single `m` for all honest receivers is itself an assumption: they all accept the same
-certificate for this dealer, namely the first valid one in TOB order (which requires the TOB to
-deliver the same order to everyone). -/
+Using a single `m` for all honest receivers assumes that they all accept the same certificate for
+this dealer; `accepted_same_cert` (Tob.lean) derives this from the TOB. -/
 structure Certificate (S : Setup Party) (A : Api Party) (corrupt : Finset Party)
     (m : A.Message) (signers : Finset Party) : Prop where
   /-- The signers have total weight at least `t + f`. Caller obligation. -/

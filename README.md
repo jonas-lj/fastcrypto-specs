@@ -27,6 +27,10 @@ faithful translation. The trust boundary is the set of hypotheses of each theore
 contracts, caller obligations and environment assumptions. Each one is documented on its Lean
 declaration.
 
+The specs are about fastcrypto. A caller obligation is what a caller such as Hashi must do for a
+theorem to apply; checking that it does belongs with the caller, not here. The doc of each
+obligation says so, and `grep -rni "caller obligation" FastcryptoSpecs` lists them all.
+
 The specs are kept minimal so that they stay maintainable as they grow: something is added only if
 it gives an assurance that tests and human review cannot give easily, such as a protocol property
 over all executions, a property of a distribution, or a result about how several building blocks

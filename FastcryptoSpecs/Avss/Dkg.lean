@@ -70,6 +70,30 @@ lemma dealer_polys (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
   choose! p hp using h
   exact ⟨p, hp⟩
 
+omit [Fintype Party] in
+/-- If honest party `i` holds the output `out i d` of each dealer `d` in `dealers`, and every honest
+output of `d` fits `p d`, then `complete_dkg` on `i`'s input returns the summed shares. -/
+lemma dkg_shares (hSh : Shamir.Contracts A.Sh) (hD : DkgContracts S A D) {corrupt : Finset Party}
+    {dealers : List Party} {σ : Party → ℕ → State A} {out : Party → Party → A.Output}
+    {p : Party → A.Sh.Poly}
+    (hp : ∀ d ∈ dealers, ∀ i n o, i ∉ corrupt → (σ d n).output i = some o →
+      A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval (p d)))
+    {i : Party} (hi : i ∉ corrupt) (hout : ∀ d ∈ dealers, ∃ n, (σ d n).output i = some (out i d))
+    {dk : D.DkOutput} (hdk : D.completeDkg (dkgInput dealers out i) = some dk) :
+    A.shareList (D.shares dk) = (A.shareIds i).map fun k =>
+      (⟨k, (dealers.map fun d => (A.Sh.eval (p d) k).value).sum⟩ : Shamir.Eval A.F) := by
+  have := hD.complete_sum _ dk (A.shareIds i) (fun o k => (A.Sh.eval (p o.1) k).value) hdk
+    (fun o ho => by
+      obtain ⟨d, hd, rfl⟩ := List.mem_map.mp ho
+      obtain ⟨n, hn⟩ := hout d hd
+      rw [hp d hd i n _ hi hn]
+      refine List.map_congr_left fun k _ => ?_
+      ext
+      · simp [hSh.eval_index]
+      · rfl)
+  rw [this]
+  simp [dkgInput, Function.comp_def]
+
 /-- **DKG completes.** Let `dealers` be nonempty, without repeats and of total weight `≥ t`, and
 suppose that for each dealer `d` in it, every honest party `i` holds the output `out i d` of `d`'s
 instance at some time (caller obligation). Then `complete_dkg` returns `Ok` for every honest party
@@ -100,7 +124,7 @@ whenever `complete_dkg` returns `Ok(dk)` for an honest party `i` on `dkgInput de
 `dk.my_shares = [(k, Σ_d (p d).eval(k).value) for k in share_ids_of(i)]`.
 
 All honest parties pass the same `dealers`: this is the caller obligation that all parties use the
-outputs of the same certified dealers. -/
+outputs of the same certified dealers. `dkg_recover_same_secret_of_tob` derives it from the TOB. -/
 theorem dkg_outputs_agree (hS : S.Valid) (hA : Contracts S A) (hSh : Shamir.Contracts A.Sh)
     (hD : DkgContracts S A D) {corrupt : Finset Party} (hcorrupt : S.Tolerates corrupt)
     {dealers : List Party} {m : Party → A.Message} {signers : Party → Finset Party}
@@ -114,18 +138,8 @@ theorem dkg_outputs_agree (hS : S.Valid) (hA : Contracts S A) (hSh : Shamir.Cont
         A.shareList (D.shares dk) = (A.shareIds i).map fun k =>
           (⟨k, (dealers.map fun d => (A.Sh.eval (p d) k).value).sum⟩ : Shamir.Eval A.F) := by
   obtain ⟨p, hp⟩ := dealer_polys hS hA hcorrupt hne hcert hrun
-  refine ⟨p, fun d hd => (hp d hd).1, fun i dk hi hdk => ?_⟩
-  have := hD.complete_sum _ dk (A.shareIds i) (fun o k => (A.Sh.eval (p o.1) k).value) hdk
-    (fun o ho => by
-      obtain ⟨d, hd, rfl⟩ := List.mem_map.mp ho
-      obtain ⟨n, hn⟩ := hout i hi d hd
-      rw [(hp d hd).2 i n _ hi hn]
-      refine List.map_congr_left fun k _ => ?_
-      ext
-      · simp [hSh.eval_index]
-      · rfl)
-  rw [this]
-  simp [dkgInput, Function.comp_def]
+  exact ⟨p, fun d hd => (hp d hd).1, fun i dk hi hdk =>
+    dkg_shares hSh hD (fun d hd => (hp d hd).2) hi (hout i hi) hdk⟩
 
 omit [DecidableEq Party] [Fintype Party] in
 lemma sumPolys_degree_lt (hSh : Shamir.Contracts A.Sh) {t : ℕ} (p : A.Sh.Poly)
@@ -140,6 +154,40 @@ lemma sumPolys_degree_lt (hSh : Shamir.Contracts A.Sh) {t : ℕ} (p : A.Sh.Poly)
     · rw [hSh.add_degree]
       exact max_lt hp (hrest q List.mem_cons_self)
     · exact fun q' hq' => hrest q' (List.mem_cons_of_mem _ hq')
+
+omit [DecidableEq Party] [Fintype Party] in
+/-- `t` shares at distinct indices, each the sum of the polynomials `p d` evaluated at its index,
+recover the sum of their constant terms. -/
+lemma recover_joint (hSh : Shamir.Contracts A.Sh) {t : ℕ} {dealers : List Party} (hne : dealers ≠ [])
+    {p : Party → A.Sh.Poly} (hdeg : ∀ d ∈ dealers, A.Sh.degreeBound (p d) < t)
+    {es : List (Shamir.Eval A.F)}
+    (hes : ∀ e ∈ es, e.value = (dealers.map fun d => (A.Sh.eval (p d) e.index).value).sum)
+    (hnodup : (es.map (·.index)).Nodup) (hlen : es.length = t) :
+    A.Sh.recoverC0 t es = .ok (dealers.map fun d => A.Sh.c0 (p d)).sum := by
+  obtain ⟨d₀, rest, hdealers⟩ := List.exists_cons_of_ne_nil hne
+  -- The joint polynomial.
+  let P := Shamir.sumPolys A.Sh (p d₀) (rest.map p)
+  have hP : ∀ k, (A.Sh.eval P k).value = (dealers.map fun d => (A.Sh.eval (p d) k).value).sum := by
+    intro k
+    simp only [P, Shamir.sumPolys_eval hSh.add_eval, hdealers, List.map_cons, List.sum_cons,
+      List.map_map, Function.comp_def]
+  -- Every share in `es` is `P` evaluated at its own index.
+  have heval : es = (es.map (·.index)).map (A.Sh.eval P) := by
+    rw [List.map_map]
+    conv_lhs => rw [← List.map_id es]
+    refine List.map_congr_left fun e he => ?_
+    ext
+    · simp [hSh.eval_index]
+    · simp [hP, hes e he]
+  have hPdeg : A.Sh.degreeBound P < t :=
+    sumPolys_degree_lt hSh _ _ (hdeg d₀ (by simp [hdealers]))
+      (fun q hq => by
+        obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hq
+        exact hdeg d (by simp [hdealers, hd]))
+  have hc0 : A.Sh.c0 P = (dealers.map fun d => A.Sh.c0 (p d)).sum := by
+    simp only [P, Shamir.sumPolys_c0 hSh, hdealers, List.map_cons, List.sum_cons, List.map_map,
+      Function.comp_def]
+  rw [heval, hSh.recover_c0 t P _ hPdeg hnodup (by rw [List.length_map, hlen]), hc0]
 
 /-- **DKG: same secret.** Let `dealers` be nonempty, and `out` as in `dkg_completes`. There are
 polynomials `p d`, one per dealer `d` in `dealers`, such that `recover_c0(t, es) = Ok(Σ_d
@@ -161,33 +209,10 @@ theorem dkg_recover_same_secret (hS : S.Valid) (hA : Contracts S A)
       A.Sh.recoverC0 S.t es = .ok (dealers.map fun d => A.Sh.c0 (p d)).sum := by
   obtain ⟨p, hdeg, hagree⟩ :=
     dkg_outputs_agree hS hA hSh hD hcorrupt hcert hrun hout hne
-  refine ⟨p, fun es hes hnodup hlen => ?_⟩
-  obtain ⟨d₀, rest, hdealers⟩ := List.exists_cons_of_ne_nil hne
-  -- The joint polynomial.
-  let P := Shamir.sumPolys A.Sh (p d₀) (rest.map p)
-  have hP : ∀ k, (A.Sh.eval P k).value = (dealers.map fun d => (A.Sh.eval (p d) k).value).sum := by
-    intro k
-    simp only [P, Shamir.sumPolys_eval hSh.add_eval, hdealers, List.map_cons, List.sum_cons,
-      List.map_map, Function.comp_def]
-  -- Every share in `es` is `P` evaluated at its own index.
-  have heval : es = (es.map (·.index)).map (A.Sh.eval P) := by
-    rw [List.map_map]
-    conv_lhs => rw [← List.map_id es]
-    refine List.map_congr_left fun e he => ?_
-    obtain ⟨i, dk, hi, hdk, hmem⟩ := hes e he
-    rw [hagree i dk hi hdk, List.mem_map] at hmem
-    obtain ⟨k, _, rfl⟩ := hmem
-    ext
-    · simp [hSh.eval_index]
-    · simp [hP]
-  have hPdeg : A.Sh.degreeBound P < S.t :=
-    sumPolys_degree_lt hSh _ _ (hdeg d₀ (by simp [hdealers]))
-      (fun q hq => by
-        obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hq
-        exact hdeg d (by simp [hdealers, hd]))
-  have hc0 : A.Sh.c0 P = (dealers.map fun d => A.Sh.c0 (p d)).sum := by
-    simp only [P, Shamir.sumPolys_c0 hSh, hdealers, List.map_cons, List.sum_cons, List.map_map,
-      Function.comp_def]
-  rw [heval, hSh.recover_c0 S.t P _ hPdeg hnodup (by rw [List.length_map, hlen]), hc0]
+  refine ⟨p, fun es hes hnodup hlen => recover_joint hSh hne hdeg (fun e he => ?_) hnodup hlen⟩
+  obtain ⟨i, dk, hi, hdk, hmem⟩ := hes e he
+  rw [hagree i dk hi hdk, List.mem_map] at hmem
+  obtain ⟨k, _, rfl⟩ := hmem
+  rfl
 
 end FastcryptoSpecs.Avss
