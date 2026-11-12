@@ -65,12 +65,13 @@ structure Api (Party : Type) where
   verifyShares : Message → (i : Party) → Shares → Bool
   /-- `fastcrypto_tbls::threshold_schnorr::avss::Dealer`. -/
   Dealer : Type
-  /-- `fastcrypto_tbls::threshold_schnorr::avss::Dealer::create_message`: the messages it can
-  return, over all `rng`s. -/
-  createMessage : Dealer → Set Message
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Dealer::create_message`: the distribution of the
+  message it returns, over the randomness of `rng`. -/
+  createMessage : Dealer → PMF Message
   /-- The scalar field, `fastcrypto_tbls::threshold_schnorr::S`. -/
   F : Type
   [instField : Field F]
+  [instFintype : Fintype F]
   /-- `fastcrypto_tbls::polynomial::Poly` over `S` and its API, as specified in
   `FastcryptoSpecs.Shamir`. -/
   Sh : Shamir.Api F
@@ -79,7 +80,9 @@ structure Api (Party : Type) where
   /-- `fastcrypto_tbls::threshold_schnorr::avss::SharesForNode::shares`. -/
   shareList : Shares → List (Shamir.Eval F)
 
-attribute [instance] Api.instField
+attribute [instance] Api.instField Api.instFintype
+
+open scoped ENNReal
 
 variable {Party : Type} [DecidableEq Party]
 
@@ -87,6 +90,11 @@ variable {Party : Type} [DecidableEq Party]
 `SharesForNode::verify(m, share_ids_of(i), i)`. -/
 def Api.ValidOutput (A : Api Party) (m : A.Message) (i : Party) (o : A.Output) : Prop :=
   A.verifyShares m i (A.shares o) = true
+
+/-- Every receiver finds `m` valid: `Rᵢ.process_message(m) = Valid(o)` for some `o`, for every
+`i`. -/
+def Api.AllValid (A : Api Party) (m : A.Message) : Prop :=
+  ∀ i, ∃ o, A.processMessage i m = .valid o
 
 /-- `v` was returned by `verify_complaint_response` for accuser `i` on message `m`, for some
 responder and response. -/
@@ -120,9 +128,10 @@ structure Contracts (S : Setup Party) (A : Api Party) : Prop where
     ∃ o, A.recover i m vs = some o
   /-- `Rᵢ.recover(m, vs) = Ok(o)` ⇒ `o.my_shares.verify(m, share_ids_of(i), i)` is `Ok`. -/
   recover_sound : ∀ i m (vs : List A.Verified) o, A.recover i m vs = some o → A.ValidOutput m i o
-  /-- `m` can be returned by `d.create_message()` ⇒ `Rᵢ.process_message(m) = Valid(o)` for some
-  `o`, for every `i`. -/
-  create_valid : ∀ d m i, m ∈ A.createMessage d → ∃ o, A.processMessage i m = .valid o
+  /-- `Pr[some Rᵢ.process_message(m) is not Valid] ≤ 1/|S|` for `m = d.create_message()`, where
+  `|S|` is the size of the scalar field. -/
+  create_valid : ∀ d, (A.createMessage d).toOuterMeasure {m | ¬ A.AllValid m} ≤
+    (Fintype.card A.F : ℝ≥0∞)⁻¹
   /-- `Rᵢ.process_message(m) ≠ Err` ⇒ there is a `p` with `p.degree_bound() < t` such that, for
   all `j` and `sh`, `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒
   `sh.shares = [p.eval(k) for k in share_ids_of(j)]`. -/
