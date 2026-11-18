@@ -3,26 +3,52 @@
 # Once checked, an entry reads:
 #   [name]
 #   fastcrypto = "<commit>"   # fastcrypto revision the check ran on
-#   method = "<method>"       # test, llm-review, review or aeneas
+#   method = "<method>"       # test, llm-review, review, verus or aeneas
 #   date = "<YYYY-MM-DD>"
+#   pr = "<owner/repo#n>"     # optional: the PR, if the revision is not on main yet
 # An empty entry has not been checked yet.
 
 [process_valid]
+fastcrypto = "738abea3b"
+method = "verus"
+date = "2026-11-18"
+pr = "MystenLabs/fastcrypto#1155"
 
 [process_invalid_iff]
-fastcrypto = "5ebc9c467"
-method = "llm-review"
-date = "2026-11-02"
+fastcrypto = "738abea3b"
+method = "verus"
+date = "2026-11-18"
+pr = "MystenLabs/fastcrypto#1155"
 
 [handle_accepts]
+fastcrypto = "738abea3b"
+method = "verus"
+date = "2026-11-18"
+pr = "MystenLabs/fastcrypto#1155"
 
 [response_verifies]
+fastcrypto = "738abea3b"
+method = "verus"
+date = "2026-11-18"
+pr = "MystenLabs/fastcrypto#1155"
 
 [verify_binds]
+fastcrypto = "738abea3b"
+method = "verus"
+date = "2026-11-18"
+pr = "MystenLabs/fastcrypto#1155"
 
 [recover_complete]
+fastcrypto = "738abea3b"
+method = "verus"
+date = "2026-11-18"
+pr = "MystenLabs/fastcrypto#1155"
 
 [recover_sound]
+fastcrypto = "738abea3b"
+method = "verus"
+date = "2026-11-18"
+pr = "MystenLabs/fastcrypto#1155"
 
 [create_valid]
 

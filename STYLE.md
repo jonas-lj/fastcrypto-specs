@@ -6,8 +6,8 @@ read off exactly what is assumed and what is proved, without reading proofs.
 ## Scope
 
 The specs assume that every contract holds. Whether the Rust code satisfies its contracts, or a
-caller such as Hashi meets its obligations, is checked elsewhere (tests, review, or a Lean proof
-about an Aeneas translation) and is not recorded in the Lean files.
+caller such as Hashi meets its obligations, is checked elsewhere (tests, review, a Verus proof, or a
+Lean proof about an Aeneas translation) and is not recorded in the Lean files.
 
 Each folder has a `checks.toml` with one entry per contract, recording the fastcrypto revision it
 was last checked against, how, and when. An empty entry means the contract has not been checked
@@ -62,7 +62,9 @@ Leave out what does not add such an assurance:
 
 ## Docs
 
-6. Documentation lives on the Lean declaration it describes, never in a separate file.
+6. Documentation lives on the Lean declaration it describes, never in a separate file. The
+   exception is each folder's `README.md`, which indexes its files, theorems and contracts with a
+   one-line summary each and how each contract was checked; the Lean docs stay authoritative.
 7. A contract's doc is its statement as a short formula over the Rust calls, e.g.
    `` `recover_i(m, vs) = Ok(o)` ⇒ `verify_i(m, o.my_shares)` ``. Notation such as `f_i` is defined
    once, in the doc of the enclosing structure.
