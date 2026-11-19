@@ -26,9 +26,10 @@ structure TobLive (S : Setup Party) (A : Api Party) (corrupt : Finset Party)
   honest_dealer_posts : ∀ d, d ∉ corrupt → ∃ c : Cert A, c.dealer = d ∧ valid c = true ∧
     ∀ i, i ∉ corrupt → ∃ n, c ∈ view n i
   /-- The instance of each dealer an honest party has accepted runs on the accepted message,
-  including the complaint path. Caller obligation. -/
+  including the complaint path in which the certificate's signers answer complaints. Caller
+  obligation. -/
   runs : ∀ n i, i ∉ corrupt → ∀ c ∈ accepted S valid (view n i),
-    Run A c.msg corrupt (σ c.dealer)
+    Run A c.msg corrupt c.signers (σ c.dealer)
 
 section Lemmas
 
@@ -137,7 +138,7 @@ theorem every_honest_party_completes_dkg (hS : S.Valid) (hA : Contracts S A)
       Certificate S A corrupt (cf d).msg (cf d).signers :=
     fun d hd => (h.tob n).valid_cert _ ((accepted_inv _).2 _ (hcfL d hd))
   have hrun : ∀ d ∈ (accepted S valid (view n i)).map Cert.dealer,
-      Run A (cf d).msg corrupt (σ d) := fun d hd => by
+      Run A (cf d).msg corrupt (cf d).signers (σ d) := fun d hd => by
     have := h.runs n i hi _ (hcfL d hd)
     rwa [hcfd d hd] at this
   -- Every honest party eventually gets an output from each accepted dealer's instance.

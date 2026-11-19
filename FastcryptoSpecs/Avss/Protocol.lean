@@ -5,7 +5,7 @@ theorem `every_honest_party_gets_valid_shares`.
 The protocol follows the numbered steps in the docs of avss.rs: (1) the dealer's message is
 broadcast, receivers process it and sign it if their shares are valid, and a certificate is posted
 on the total-order broadcast (TOB); (2) a receiver with invalid shares sends its complaint once the
-certificate is on the TOB; (3) receivers with valid shares answer complaints; (4) the accuser
+certificate is on the TOB; (3) the signers answer complaints; (4) the accuser
 verifies the responses and recovers its shares.
 
 The assumptions about the caller and the network are the fields of `Certificate`,
@@ -90,9 +90,10 @@ structure BasicRun (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ 
   obligation. -/
   processes : ∀ i n, i ∉ corrupt → i ∈ (σ n).hasMessage → ∃ n' r, (σ n').processed i = some r
 
-/-- A `BasicRun` together with the complaint path. -/
-structure Run (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ → State A) : Prop
-    extends BasicRun A m corrupt σ where
+/-- A `BasicRun` together with the complaint path, in which the parties `signers` of the
+certificate answer complaints. -/
+structure Run (A : Api Party) (m : A.Message) (corrupt : Finset Party) (signers : Finset Party)
+    (σ : ℕ → State A) : Prop extends BasicRun A m corrupt σ where
   /-- An honest party whose `process_message` returned `Complaint(c)` eventually sends it.
   Caller obligation. -/
   complains : ∀ i n c, i ∉ corrupt → (σ n).processed i = some (.complaint c) →
@@ -101,10 +102,10 @@ structure Run (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ
   assumption. -/
   complaint_delivered : ∀ i j n, i ∉ corrupt → j ∉ corrupt → i ∈ (σ n).complained →
     ∃ n', (i, j) ∈ (σ n').complaintDelivered
-  /-- If honest party `j` has received the complaint `c` of `i` (the result of `process_message`
+  /-- If honest signer `j` has received the complaint `c` of `i` (the result of `process_message`
   for `i`), `j`'s own result is `Valid(o)`, and `handle_complaint` by `j` on `(m, i, c, o)` returns
   `Ok(r)`, then `j` eventually sends `r` to `i`. Caller obligation. -/
-  responds : ∀ i j n c o r, j ∉ corrupt → (i, j) ∈ (σ n).complaintDelivered →
+  responds : ∀ i j n c o r, j ∉ corrupt → j ∈ signers → (i, j) ∈ (σ n).complaintDelivered →
     A.processMessage i m = .complaint c → A.processMessage j m = .valid o →
     A.handleComplaint j m i c o = some r → ∃ n', (j, i, r) ∈ (σ n').responded
   /-- If honest party `j` has sent response `r` to honest party `i`, and
@@ -121,17 +122,17 @@ structure Run (A : Api Party) (m : A.Message) (corrupt : Finset Party) (σ : ℕ
 
 section Lemmas
 
-variable {A : Api Party} {m : A.Message} {corrupt : Finset Party} {σ : ℕ → State A}
+variable {A : Api Party} {m : A.Message} {corrupt signers : Finset Party} {σ : ℕ → State A}
 
 omit [Fintype Party] [DecidableEq Party] in
-lemma Run.processed_mono (h : Run A m corrupt σ) {n n' : ℕ} (hle : n ≤ n') {i r}
+lemma Run.processed_mono (h : Run A m corrupt signers σ) {n n' : ℕ} (hle : n ≤ n') {i r}
     (hr : (σ n).processed i = some r) : (σ n').processed i = some r := by
   induction n', hle using Nat.le_induction with
   | base => exact hr
   | succ k _ ih => exact (h.grows k).processed i r ih
 
 omit [Fintype Party] [DecidableEq Party] in
-lemma Run.verified_mono (h : Run A m corrupt σ) {n n' : ℕ} (hle : n ≤ n') {i v}
+lemma Run.verified_mono (h : Run A m corrupt signers σ) {n n' : ℕ} (hle : n ≤ n') {i v}
     (hv : v ∈ (σ n).verified i) : v ∈ (σ n').verified i := by
   induction n', hle using Nat.le_induction with
   | base => exact hv
@@ -171,7 +172,7 @@ theorem every_honest_party_gets_valid_shares {S : Setup Party} {A : Api Party}
     (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
     (hcorrupt : S.Tolerates corrupt) {m : A.Message} {signers : Finset Party}
     (hcert : Certificate S A corrupt m signers) {σ : ℕ → State A}
-    (hrun : Run A m corrupt σ) (i : Party) (hi : i ∉ corrupt) :
+    (hrun : Run A m corrupt signers σ) (i : Party) (hi : i ∉ corrupt) :
     ∃ n o, (σ n).output i = some o ∧ A.ValidOutput m i o := by
   -- The honest signers have weight at least `t`, so there is at least one.
   set H := signers.filter (· ∉ corrupt) with hHdef
@@ -213,9 +214,10 @@ theorem every_honest_party_gets_valid_shares {S : Setup Party} {A : Api Party}
     have hall : ∀ j ∈ H, ∃ n, ∃ v ∈ (σ n).verified i, A.responderId v = j := by
       intro j hj
       obtain ⟨hjc, oj, hoj⟩ := honestOfH j hj
+      have hjs := (Finset.mem_filter.mp hj).1
       obtain ⟨n3, hn3⟩ := hrun.complaint_delivered i j n2 hi hjc hn2
       obtain ⟨rj, hrj⟩ := hA.handle_accepts i j m c oj hpm hoj
-      obtain ⟨n4, hn4⟩ := hrun.responds i j n3 c oj rj hjc hn3 hpm hoj hrj
+      obtain ⟨n4, hn4⟩ := hrun.responds i j n3 c oj rj hjc hjs hn3 hpm hoj hrj
       obtain ⟨v, hv⟩ := hA.response_verifies i j m c oj rj hoj hrj
       exact hrun.response_delivered i j rj v n4 hi hjc hn4 hv
     obtain ⟨N, hN⟩ := eventually_all H
