@@ -72,6 +72,9 @@ structure Api (Party : Type) where
   F : Type
   [instField : Field F]
   [instFintype : Fintype F]
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::Dealer::secret`: the `secret` passed to
+  `Dealer::new`, or the one sampled there if it is `None`. -/
+  secret : Dealer → F
   /-- `fastcrypto_tbls::polynomial::Poly` over `S` and its API, as specified in
   `FastcryptoSpecs.Shamir`. -/
   Sh : Shamir.Api F
@@ -132,6 +135,12 @@ structure Contracts (S : Setup Party) (A : Api Party) : Prop where
   `|S|` is the size of the scalar field. -/
   create_valid : ∀ d, (A.createMessage d).toOuterMeasure {m | ¬ A.AllValid m} ≤
     (Fintype.card A.F : ℝ≥0∞)⁻¹
+  /-- `m = d.create_message()` ⇒ every `p` with `p.degree_bound() < t` such that, for all `j` and
+  `sh`, `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒ `sh.shares = [p.eval(k) for k in
+  share_ids_of(j)]`, has `p.c0() = d.secret`. -/
+  create_secret : ∀ d m, m ∈ (A.createMessage d).support → ∀ p, A.Sh.degreeBound p < S.t →
+    (∀ j sh, A.verifyShares m j sh = true → A.shareList sh = (A.shareIds j).map (A.Sh.eval p)) →
+    A.Sh.c0 p = A.secret d
   /-- `Rᵢ.process_message(m) ≠ Err` ⇒ there is a `p` with `p.degree_bound() < t` such that, for
   all `j` and `sh`, `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒
   `sh.shares = [p.eval(k) for k in share_ids_of(j)]`. -/

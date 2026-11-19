@@ -3,8 +3,9 @@
 # Once checked, an entry reads:
 #   [name]
 #   fastcrypto = "<commit>"   # fastcrypto revision the check ran on
-#   method = "<method>"       # test, llm-review, review or aeneas
+#   method = "<method>"       # test, llm-review, review, verus or aeneas
 #   date = "<YYYY-MM-DD>"
+#   pr = "<owner/repo#n>"     # optional: the PR, if the revision is not on main yet
 # An empty entry has not been checked yet.
 
 [rand_c0]
@@ -19,7 +20,15 @@
 
 [add_degree]
 
+[mul_eval]
+
+[mul_c0]
+
+[mul_degree]
+
 [recover_c0]
+
+[recover_c0_linear]
 
 [rand_shift]
 

@@ -43,6 +43,23 @@ theorem honest_outputs_agree (hS : S.Valid) (hA : Contracts S A) {corrupt : Fins
   exact ⟨p, hdeg, fun i n o hi ho =>
     hbind i _ (output_valid hA (hrun.honest n) hi ho)⟩
 
+/-- **An honest dealer's secret is shared.** If `m` was returned by `d.create_message()`, there is
+a polynomial `p` with `degree_bound() < t` and `p.c0() = d.secret` such that every output `o` an
+honest party `i` holds, at any time, has shares `[p.eval(k) for k in share_ids_of(i)]`. (`i₀` is
+any party.) -/
+theorem honest_dealer_secret_shared (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
+    (hcorrupt : S.Tolerates corrupt) {d : A.Dealer} {m : A.Message}
+    (hm : m ∈ (A.createMessage d).support) {signers : Finset Party}
+    (hcert : Certificate S A corrupt m signers) {σ : ℕ → State A}
+    (hrun : BasicRun A m corrupt σ) (i₀ : Party) :
+    ∃ p, A.Sh.degreeBound p < S.t ∧ A.Sh.c0 p = A.secret d ∧
+      ∀ i n o, i ∉ corrupt → (σ n).output i = some o →
+        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval p) := by
+  obtain ⟨p, hdeg, hbind⟩ :=
+    hA.feldman_binding i₀ m (certified_not_invalid hS hA hcorrupt hcert i₀)
+  exact ⟨p, hdeg, hA.create_secret d m hm p hdeg hbind, fun i n o hi ho =>
+    hbind i _ (output_valid hA (hrun.honest n) hi ho)⟩
+
 /-- **Same secret.** There is a polynomial `p` such that `recover_c0(t, es) = Ok(p.c0())` for every
 list `es` of exactly `t` shares at distinct indices, each taken from an output some honest party
 holds at some time. -/

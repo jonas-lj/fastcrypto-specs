@@ -8,3 +8,4 @@ import FastcryptoSpecs.Avss.Agreement
 import FastcryptoSpecs.Avss.Dkg
 import FastcryptoSpecs.Avss.Tob
 import FastcryptoSpecs.Avss.Liveness
+import FastcryptoSpecs.Avss.KeyRotation

@@ -52,8 +52,14 @@ pr = "MystenLabs/fastcrypto#1155"
 
 [create_valid]
 
+[create_secret]
+
 [feldman_binding]
 
 [complete_sum]
 
 [complete_ok]
+
+[process_matches_commitment]
+
+[rotation_interpolates]

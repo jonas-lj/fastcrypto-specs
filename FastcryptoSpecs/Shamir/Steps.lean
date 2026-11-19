@@ -40,6 +40,9 @@ structure Api (F : Type) where
   eval : Poly → ShareIndex → Eval F
   /-- `fastcrypto_tbls::polynomial::Poly::add` (`impl Add<&Poly<C>> for Poly<C>`). -/
   add : Poly → Poly → Poly
+  /-- `fastcrypto_tbls::polynomial::Poly::mul` (`impl Mul<&C> for Poly<C>`): multiplies every
+  coefficient by a scalar. -/
+  mul : Poly → F → Poly
   /-- `fastcrypto_tbls::polynomial::Poly::recover_c0`. `Err` is `.error`; a panic cannot be
   represented, so a contract saying it returns `.ok` also claims that it does not panic on those
   inputs. -/
@@ -61,10 +64,21 @@ structure Contracts (A : Api F) : Prop where
   add_c0 : ∀ p q, A.c0 (A.add p q) = A.c0 p + A.c0 q
   /-- `(p + q).degree_bound() = max(p.degree_bound(), q.degree_bound())`. -/
   add_degree : ∀ p q, A.degreeBound (A.add p q) = max (A.degreeBound p) (A.degreeBound q)
+  /-- `(p * a).eval(i) = p.eval(i) * a`. -/
+  mul_eval : ∀ p a i, (A.eval (A.mul p a) i).value = (A.eval p i).value * a
+  /-- `(p * a).c0() = p.c0() * a`. -/
+  mul_c0 : ∀ p a, A.c0 (A.mul p a) = A.c0 p * a
+  /-- `(p * a).degree_bound() ≤ p.degree_bound()`. -/
+  mul_degree : ∀ p a, A.degreeBound (A.mul p a) ≤ A.degreeBound p
   /-- `recover_c0(t, [p.eval(i₁), …, p.eval(iₜ)]) = Ok(p.c0())` if `p.degree_bound() < t` and
   `i₁, …, iₜ` are distinct. -/
   recover_c0 : ∀ t p (idx : List ShareIndex), A.degreeBound p < t → idx.Nodup →
     idx.length = t → A.recoverC0 t (idx.map (A.eval p)) = .ok (A.c0 p)
+  /-- For distinct `i₁, …, iₜ` there are `λ₁, …, λₜ` such that
+  `recover_c0(t, [(i₁, y₁), …, (iₜ, yₜ)]) = Ok(Σⱼ yⱼ·λⱼ)` for all `y₁, …, yₜ`. -/
+  recover_c0_linear : ∀ t (idx : List ShareIndex), idx.Nodup → idx.length = t →
+    ∃ coeffs : List F, ∀ ys : List F, ys.length = t →
+      A.recoverC0 t (List.zipWith Eval.mk idx ys) = .ok (List.zipWith (· * ·) ys coeffs).sum
   /-- `rand_fixed_c0(d, s) + q` and `rand_fixed_c0(d, s + q.c0())` have the same distribution if
   `q.degree_bound() ≤ d`. -/
   rand_shift : ∀ d s q, A.degreeBound q ≤ d →
