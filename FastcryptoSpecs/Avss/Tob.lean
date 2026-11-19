@@ -159,6 +159,23 @@ theorem done_accepted_eq (h : Tob S A corrupt valid view) {i j : Party} (hi : i 
   · exact (accepted_eq_of_done hp hdi).symm
   · exact accepted_eq_of_done hp hdj
 
+/-- **Honest dealer inclusion.** A party that is done has accepted a certificate whose dealer is not
+in `corrupt`. -/
+theorem done_has_honest_dealer [Fintype Party] (hS : S.Valid)
+    (hcorrupt : S.Tolerates corrupt) {v : List (Cert A)} (hd : Done S valid v) :
+    ∃ c ∈ accepted S valid v, c.dealer ∉ corrupt := by
+  by_contra h
+  push Not at h
+  have hsub : ((accepted S valid v).map Cert.dealer).toFinset ⊆ corrupt := by
+    intro d hdm
+    obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hdm)
+    exact h c hc
+  have hle := S.weightOf_mono hsub
+  have hft := hS.f_lt_t
+  unfold Done at hd
+  unfold Setup.Tolerates at hcorrupt
+  omega
+
 /-- **DKG over the TOB: same secret.** There is a secret `s` such that `recover_c0(t, es) = Ok(s)`
 for every list `es` of exactly `t` shares at distinct indices, each taken from the `DkOutput` that
 `complete_dkg` returned to an honest party `i` that is done, on the outputs `i` holds from its

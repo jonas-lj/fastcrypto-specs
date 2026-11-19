@@ -11,11 +11,13 @@ imports the one above it.
 | `HonestDealer.lean` | A dealer whose message every receiver finds valid, as `create_message`'s is except with probability `≤ 1/|S|`: no complaints, certifiable when the honest weight is at least `t + f`, and corrupt parties can block certification. |
 | `Agreement.lean` | All honest outputs fit one polynomial, so any `t` honest shares recover the same secret. |
 | `Dkg.lean` | `complete_dkg` as a black box with its contracts (`DkgApi`, `DkgContracts`), and the DKG theorems: it completes, outputs agree, and they share one joint secret. |
-| `Tob.lean` | Reading dealer certificates from the total-order broadcast (`Cert`, `accepted`, `Tob`, `TobRun`): honest parties accept the same certificate per dealer and, once done, the same dealers, so the DKG gives one joint secret without assuming that. |
+| `Tob.lean` | Reading dealer certificates from the total-order broadcast (`Cert`, `accepted`, `Tob`, `TobRun`): honest parties accept the same certificate per dealer and, once done, the same dealers, so the DKG gives one joint secret without assuming that, and they include an honest dealer. |
+| `Liveness.lean` | The TOB over time (`TobLive`): every honest party is eventually done, holds an output from each dealer it accepted, and completes the DKG. |
 
 ## Theorems
 
-All proved in Lean from the contracts below and the assumptions in `Protocol.lean` and `Tob.lean`,
+All proved in Lean from the contracts below and the assumptions in `Protocol.lean`, `Tob.lean` and
+`Liveness.lean`,
 with no `sorry` or axioms. The corrupt parties have weight at most `f` (`Setup.Tolerates`) and the
 parameters pass `Parameters::validate` (`Setup.Valid`).
 
@@ -34,6 +36,8 @@ parameters pass `Parameters::validate` (`Setup.Valid`).
 | `accepted_same_cert` | `Tob.lean` | Honest parties accept the same certificate for each dealer. |
 | `done_accepted_eq` | `Tob.lean` | Honest parties that are done accept the same dealers. |
 | `dkg_recover_same_secret_of_tob` | `Tob.lean` | DKG over the TOB: any `t` honest DKG shares recover one joint secret, without assuming the parties agree on the dealers. |
+| `done_has_honest_dealer` | `Tob.lean` | The dealers a party accepts once done include one that is not corrupt. |
+| `every_honest_party_completes_dkg` | `Liveness.lean` | DKG liveness: every honest party is eventually done, holds an output from each dealer it accepted, and `complete_dkg` returns `Ok` on them. |
 
 ## Contracts
 
