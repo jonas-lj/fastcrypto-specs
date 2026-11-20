@@ -69,6 +69,13 @@ structure RotationContracts (S : Setup Party) (A : Api Party) (D : DkgApi Party 
     ∃ w : ShareIndex → A.F,
       A.shareList (D.shares dk) = (A.shareIds i).map (fun k => ⟨k, w k⟩) ∧
       ∀ k ∈ A.shareIds i, A.Sh.recoverC0 t (os.map fun o => ⟨o.1, v o k⟩) = .ok (w k)
+  /-- `complete_key_rotation(t, i, os) = Ok(dk)` and
+  `dk.commitment_for_index(k) = Some(G::generator() * x)` ⇒ `G::generator() * x` is the Lagrange
+  combination at 0 of the `(u, out.feldman_commitment.eval(k))` for `(u, out) ∈ os`, i.e.
+  `recover_c0(t, [(u, y_u)]) = Ok(x)` where `out.feldman_commitment.eval(k) = G::generator() * y_u`. -/
+  rotation_commitments : ∀ t i os dk k x, R.completeKeyRotation t i os = some dk →
+    D.commitmentForIndex dk k = some x →
+    A.Sh.recoverC0 t (os.map fun o => ⟨o.1, A.committed o.2 k⟩) = .ok x
 
 section Lemmas
 
@@ -121,7 +128,7 @@ variable [Fintype Party] {S : Setup Party} {A : Api Party} {D : DkgApi Party A}
   {R : RotationApi Party A D}
 
 /-- Per reshared index `u`, a polynomial with `degree_bound() < t` and constant term `s u` that
-every honest output of `u`'s instance fits. -/
+every honest output of `u`'s instance fits, in its shares and its commitments. -/
 lemma rotation_polys (hS : S.Valid) (hR : ∀ s, Contracts S (R.at s))
     (hRot : RotationContracts S A D R) {corrupt : Finset Party} (hcorrupt : S.Tolerates corrupt)
     {us : List ShareIndex} (hne : us ≠ []) {s : ShareIndex → A.F} {m : ShareIndex → A.Message}
@@ -132,15 +139,19 @@ lemma rotation_polys (hS : S.Valid) (hR : ∀ s, Contracts S (R.at s))
     (i₀ : Party) :
     ∃ p : ShareIndex → A.Sh.Poly, ∀ u ∈ us, A.Sh.degreeBound (p u) < S.t ∧ A.Sh.c0 (p u) = s u ∧
       ∀ i n o, i ∉ corrupt → (σ u n).output i = some o →
-        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval (p u)) := by
+        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval (p u)) ∧
+          ∀ k, A.committed o k = (A.Sh.eval (p u) k).value := by
   have h : ∀ u ∈ us, ∃ p : A.Sh.Poly, A.Sh.degreeBound p < S.t ∧ A.Sh.c0 p = s u ∧
       ∀ i n o, i ∉ corrupt → (σ u n).output i = some o →
-        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval p) := by
+        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval p) ∧
+          ∀ k, A.committed o k = (A.Sh.eval p k).value := by
     intro u hu
-    have hnot := certified_not_invalid hS (hR (s u)) hcorrupt (hcert u hu) i₀
-    obtain ⟨p, hdeg, hbind⟩ := (hR (s u)).feldman_binding i₀ (m u) hnot
-    exact ⟨p, hdeg, hRot.process_matches_commitment (s u) i₀ (m u) hnot p hdeg hbind,
-      fun i n o hi ho => hbind i _ (output_valid (hR (s u)) ((hrun u hu).honest n) hi ho)⟩
+    have hnot := certified_not_invalid hS (hR (s u)) hcorrupt (hcert u hu)
+    obtain ⟨p, hdeg, hbind⟩ := (hR (s u)).feldman_binding i₀ (m u) (hnot i₀)
+    exact ⟨p, hdeg, hRot.process_matches_commitment (s u) i₀ (m u) (hnot i₀) p hdeg hbind,
+      fun i n o hi ho => ⟨hbind i _ (output_valid (hR (s u)) ((hrun u hu).honest n) hi ho),
+        (hR (s u)).output_commitment i (m u) o (hnot i)
+          (output_source ((hrun u hu).honest n) hi ho) p hdeg hbind⟩⟩
   obtain ⟨u₀, hu₀⟩ := List.exists_mem_of_ne_nil us hne
   haveI : Nonempty A.Sh.Poly := ⟨(h u₀ hu₀).choose⟩
   choose! p hp using h
@@ -148,11 +159,13 @@ lemma rotation_polys (hS : S.Valid) (hR : ∀ s, Contracts S (R.at s))
 
 /-- **Key rotation keeps the secret.** Let the old shares be evaluations of a polynomial `P` with
 `degree_bound() < t_old`, and let `us` be `t_old` distinct share indices. Suppose each `u ∈ us` is
-reshared by an AVSS instance whose receivers use `commitment = Some(G::generator() * P.eval(u))`,
-and that every honest party `i` holds the output `out i u` of each of these instances (caller
-obligations). Then there is a polynomial `Q` with `degree_bound() < t` and `Q.c0() = P.c0()` such
+reshared by an AVSS instance whose receivers use `commitment = Some(G::generator() * P.eval(u))`
+(as `old.commitment_for_index(u)` is, for the output `old` of `complete_dkg` or of an earlier
+rotation, by `dkg_outputs_agree` and this theorem), and that every honest party `i` holds the
+output `out i u` of each of these instances (caller obligations). Then there is a polynomial `Q` with `degree_bound() < t` and `Q.c0() = P.c0()` such
 that whenever `complete_key_rotation(t_old, i, [(u, out i u) for u in us])` returns `Ok(dk)` for an
-honest party `i`, `dk.my_shares = [Q.eval(k) for k in share_ids_of(i)]`.
+honest party `i`, `dk.my_shares = [Q.eval(k) for k in share_ids_of(i)]`, and
+`dk.commitment_for_index(k) = Some(c)` ⇒ `c = G::generator() * Q.eval(k)`.
 
 All honest parties pass the same `us`: this is the caller obligation that all parties use the
 outputs of the same certified instances. (`i₀` is any party.) -/
@@ -167,8 +180,11 @@ theorem key_rotation_keeps_secret (hS : S.Valid) (hR : ∀ s, Contracts S (R.at 
     {out : Party → ShareIndex → A.Output}
     (hout : ∀ i, i ∉ corrupt → ∀ u ∈ us, ∃ n, (σ u n).output i = some (out i u)) (i₀ : Party) :
     ∃ Q, A.Sh.degreeBound Q < S.t ∧ A.Sh.c0 Q = A.Sh.c0 P ∧
-      ∀ i dk, i ∉ corrupt → R.completeKeyRotation told i (us.map fun u => (u, out i u)) = some dk →
-        A.shareList (D.shares dk) = (A.shareIds i).map (A.Sh.eval Q) := by
+      (∀ i dk, i ∉ corrupt → R.completeKeyRotation told i (us.map fun u => (u, out i u)) = some dk →
+        A.shareList (D.shares dk) = (A.shareIds i).map (A.Sh.eval Q)) ∧
+      ∀ i dk k x, i ∉ corrupt →
+        R.completeKeyRotation told i (us.map fun u => (u, out i u)) = some dk →
+        D.commitmentForIndex dk k = some x → x = (A.Sh.eval Q k).value := by
   have hne : us ≠ [] := by
     rintro rfl
     simp at hlen
@@ -187,7 +203,7 @@ theorem key_rotation_keeps_secret (hS : S.Valid) (hR : ∀ s, Contracts S (R.at 
       obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hq
       exact (hp u hu).1
   rw [List.zipWith_map_left] at hQc
-  refine ⟨Q, hQd, ?_, fun i dk hi hdk => ?_⟩
+  refine ⟨Q, hQd, ?_, fun i dk hi hdk => ?_, fun i dk k x hi hdk hx => ?_⟩
   · -- `Q.c0() = Σ_u P.eval(u) · coeffs_u = P.c0()`.
     have hrec := hSh.recover_c0 told P us hP hnodup hlen
     rw [map_eval_eq_mk hSh, hlin] at hrec
@@ -199,9 +215,22 @@ theorem key_rotation_keeps_secret (hS : S.Valid) (hR : ∀ s, Contracts S (R.at 
       (fun o k => (A.Sh.eval (p o.1) k).value) hdk fun o ho => by
         obtain ⟨u, hu, rfl⟩ := List.mem_map.mp ho
         obtain ⟨n, hn⟩ := hout i hi u hu
-        rw [(hp u hu).2.2 i n _ hi hn, map_eval_eq_mk hSh]
+        rw [((hp u hu).2.2 i n _ hi hn).1, map_eval_eq_mk hSh]
     rw [hw, map_eval_eq_mk hSh Q]
     refine List.map_congr_left fun k hk => ?_
     have hk' := hwk k hk
     rw [List.map_map, Function.comp_def, hlin] at hk'
     rw [hQe k, List.zipWith_map_left, ← Except.ok.inj hk']
+  · -- Each new commitment is `Σ_u p_u.eval(k) · coeffs_u = Q.eval(k)`, in the exponent.
+    have hl : (us.map fun u => (u, out i u)).map
+        (fun o => (⟨o.1, A.committed o.2 k⟩ : Eval A.F)) =
+        us.map fun u => ⟨u, (A.Sh.eval (p u) k).value⟩ := by
+      rw [List.map_map]
+      refine List.map_congr_left fun u hu => ?_
+      obtain ⟨n, hn⟩ := hout i hi u hu
+      simp only [Function.comp_apply]
+      rw [((hp u hu).2.2 i n _ hi hn).2 k]
+    have hx' := hRot.rotation_commitments told i _ dk k x hdk hx
+    rw [hl, hlin] at hx'
+    rw [hQe k, List.zipWith_map_left]
+    exact (Except.ok.inj hx').symm

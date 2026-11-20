@@ -30,18 +30,20 @@ lemma certified_not_invalid (hS : S.Valid) (hA : Contracts S A) {corrupt : Finse
   cases ho
 
 /-- **Agreement.** There is a polynomial `p` with `degree_bound() < t` such that every output `o`
-an honest party `i` holds, at any time, has shares `[p.eval(k) for k in share_ids_of(i)]`, whether
-`o` came from `process_message` or from `recover`. (`i₀` is any party.) -/
+an honest party `i` holds, at any time, has shares `[p.eval(k) for k in share_ids_of(i)]` and
+`o.feldman_commitment.eval(k) = G::generator() * p.eval(k)` for all `k`, whether `o` came from
+`process_message` or from `recover`. (`i₀` is any party.) -/
 theorem honest_outputs_agree (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
     (hcorrupt : S.Tolerates corrupt) {m : A.Message} {signers : Finset Party}
     (hcert : Certificate S A corrupt m signers) {σ : ℕ → State A}
     (hrun : BasicRun A m corrupt σ) (i₀ : Party) :
     ∃ p, A.Sh.degreeBound p < S.t ∧ ∀ i n o, i ∉ corrupt → (σ n).output i = some o →
-      A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval p) := by
-  obtain ⟨p, hdeg, hbind⟩ :=
-    hA.feldman_binding i₀ m (certified_not_invalid hS hA hcorrupt hcert i₀)
-  exact ⟨p, hdeg, fun i n o hi ho =>
-    hbind i _ (output_valid hA (hrun.honest n) hi ho)⟩
+      A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval p) ∧
+        ∀ k, A.committed o k = (A.Sh.eval p k).value := by
+  have hnot := certified_not_invalid hS hA hcorrupt hcert
+  obtain ⟨p, hdeg, hbind⟩ := hA.feldman_binding i₀ m (hnot i₀)
+  exact ⟨p, hdeg, fun i n o hi ho => ⟨hbind i _ (output_valid hA (hrun.honest n) hi ho),
+    hA.output_commitment i m o (hnot i) (output_source (hrun.honest n) hi ho) p hdeg hbind⟩⟩
 
 /-- **An honest dealer's secret is shared.** If `m` was returned by `d.create_message()`, there is
 a polynomial `p` with `degree_bound() < t` and `p.c0() = d.secret` such that every output `o` an
@@ -81,7 +83,7 @@ theorem honest_shares_recover_same_secret (hS : S.Valid) (hA : Contracts S A)
     conv_lhs => rw [← List.map_id es]
     refine List.map_congr_left fun e he => ?_
     obtain ⟨i, n, o, hi, ho, hmem⟩ := hes e he
-    rw [hagree i n o hi ho, List.mem_map] at hmem
+    rw [(hagree i n o hi ho).1, List.mem_map] at hmem
     obtain ⟨k, _, rfl⟩ := hmem
     simp only [id, Function.comp_apply, hSh.eval_index]
   rw [heval]

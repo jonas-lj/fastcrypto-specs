@@ -75,6 +75,10 @@ structure Api (Party : Type) where
   /-- `fastcrypto_tbls::threshold_schnorr::avss::Dealer::secret`: the `secret` passed to
   `Dealer::new`, or the one sampled there if it is `None`. -/
   secret : Dealer → F
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::AvssOutput::feldman_commitment`, evaluated:
+  `committed o k = x` means `o.feldman_commitment.eval(k) = G::generator() * x`. The group is not
+  modelled; this uses that `x ↦ G::generator() * x` is a bijection. -/
+  committed : Output → Shamir.ShareIndex → F
   /-- `fastcrypto_tbls::polynomial::Poly` over `S` and its API, as specified in
   `FastcryptoSpecs.Shamir`. -/
   Sh : Shamir.Api F
@@ -147,5 +151,14 @@ structure Contracts (S : Setup Party) (A : Api Party) : Prop where
   feldman_binding : ∀ i m, A.processMessage i m ≠ .invalid →
     ∃ p, A.Sh.degreeBound p < S.t ∧
       ∀ j sh, A.verifyShares m j sh = true → A.shareList sh = (A.shareIds j).map (A.Sh.eval p)
+  /-- `Rᵢ.process_message(m) ≠ Err`, `o` is returned by `Rᵢ.process_message(m)` (as `Valid(o)`) or
+  by `Rᵢ.recover(m, vs)`, and `p` with `p.degree_bound() < t` is such that, for all `j` and `sh`,
+  `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒ `sh.shares = [p.eval(k) for k in share_ids_of(j)]`
+  ⇒ `o.feldman_commitment.eval(k) = G::generator() * p.eval(k)` for all `k`. -/
+  output_commitment : ∀ i m o, A.processMessage i m ≠ .invalid →
+    (A.processMessage i m = .valid o ∨ ∃ vs, A.recover i m vs = some o) →
+    ∀ p, A.Sh.degreeBound p < S.t →
+      (∀ j sh, A.verifyShares m j sh = true → A.shareList sh = (A.shareIds j).map (A.Sh.eval p)) →
+      ∀ k, A.committed o k = (A.Sh.eval p k).value
 
 end FastcryptoSpecs.Avss

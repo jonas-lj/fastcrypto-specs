@@ -154,6 +154,16 @@ lemma eventually_all (T : Finset Party) (P : Party → ℕ → Prop)
     · exact mono _ _ _ (le_max_right _ _) ha
     · exact mono _ _ _ (le_max_left _ _) (hN j hj)
 
+omit [Fintype Party] [DecidableEq Party] in
+/-- An output an honest party holds is returned by `process_message` (as `Valid`) or by `recover`
+on `m`. -/
+lemma output_source {s : State A} (hs : HonestComputes A m corrupt s) {i : Party}
+    (hi : i ∉ corrupt) {o : A.Output} (ho : s.output i = some o) :
+    A.processMessage i m = .valid o ∨ ∃ vs, A.recover i m vs = some o := by
+  rcases hs.output_from i o hi ho with hp | h
+  · exact Or.inl (hs.processed_eq i _ hi hp).symm
+  · exact Or.inr h
+
 omit [Fintype Party] in
 /-- Any output an honest party holds is valid: its shares pass `SharesForNode::verify`. -/
 lemma output_valid {S : Setup Party} (hA : Contracts S A) {s : State A}

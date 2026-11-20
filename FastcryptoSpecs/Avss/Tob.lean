@@ -229,7 +229,7 @@ theorem dkg_recover_same_secret_of_tob [Fintype Party] (hS : S.Valid) (hA : Cont
       ∃ n, (σ d n).output i = some (out i d) := fun d hd => by
     have := h.holds_output i hi _ (by rw [hL]; exact hcfL d hd)
     rwa [hcfd d hd] at this
-  rw [dkg_shares hSh hD (fun d hd => (hp d hd).2) hi hout hdk, List.mem_map] at hmem
+  rw [dkg_shares hSh hD (fun d hd i n o hi ho => ((hp d hd).2 i n o hi ho).1) hi hout hdk, List.mem_map] at hmem
   obtain ⟨k, _, rfl⟩ := hmem
   rfl
 

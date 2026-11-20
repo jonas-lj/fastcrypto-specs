@@ -56,10 +56,16 @@ pr = "MystenLabs/fastcrypto#1155"
 
 [feldman_binding]
 
+[output_commitment]
+
 [complete_sum]
 
 [complete_ok]
 
+[complete_commitments]
+
 [process_matches_commitment]
 
 [rotation_interpolates]
+
+[rotation_commitments]

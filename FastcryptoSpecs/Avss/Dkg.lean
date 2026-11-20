@@ -19,6 +19,9 @@ structure DkgApi (Party : Type) (A : Api Party) where
   completeDkg : List (Party × A.Output) → Option DkOutput
   /-- `fastcrypto_tbls::threshold_schnorr::avss::DkOutput::my_shares`. -/
   shares : DkOutput → A.Shares
+  /-- `fastcrypto_tbls::threshold_schnorr::avss::DkOutput::commitment_for_index`: `some x` means
+  it returns `Some(G::generator() * x)` (see `Api.committed`). -/
+  commitmentForIndex : DkOutput → Shamir.ShareIndex → Option A.F
 
 variable {Party : Type} [DecidableEq Party]
 
@@ -38,6 +41,10 @@ structure DkgContracts (S : Setup Party) (A : Api Party) (D : DkgApi Party A) : 
     S.t ≤ S.weightOf (os.map Prod.fst).toFinset →
     (∀ o ∈ os, (A.shareList (A.shares o.2)).map (·.index) = idx) →
     ∃ dk, D.completeDkg os = some dk
+  /-- `complete_dkg(os) = Ok(dk)` and `dk.commitment_for_index(k) = Some(G::generator() * x)` ⇒
+  `G::generator() * x = Σ_{o ∈ os} o.feldman_commitment.eval(k)`. -/
+  complete_commitments : ∀ os dk k x, D.completeDkg os = some dk →
+    D.commitmentForIndex dk k = some x → x = (os.map fun o => A.committed o.2 k).sum
 
 variable [Fintype Party] {S : Setup Party} {A : Api Party} {D : DkgApi Party A}
 
@@ -60,10 +67,12 @@ lemma dealer_polys (hS : S.Valid) (hA : Contracts S A) {corrupt : Finset Party}
     {σ : Party → ℕ → State A} (hrun : ∀ d ∈ dealers, BasicRun A (m d) corrupt (σ d)) :
     ∃ p : Party → A.Sh.Poly, ∀ d ∈ dealers, A.Sh.degreeBound (p d) < S.t ∧
       ∀ i n o, i ∉ corrupt → (σ d n).output i = some o →
-        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval (p d)) := by
+        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval (p d)) ∧
+          ∀ k, A.committed o k = (A.Sh.eval (p d) k).value := by
   have h : ∀ d ∈ dealers, ∃ p, A.Sh.degreeBound p < S.t ∧
       ∀ i n o, i ∉ corrupt → (σ d n).output i = some o →
-        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval p) :=
+        A.shareList (A.shares o) = (A.shareIds i).map (A.Sh.eval p) ∧
+          ∀ k, A.committed o k = (A.Sh.eval p k).value :=
     fun d hd => honest_outputs_agree hS hA hcorrupt (hcert d hd) (hrun d hd) d
   obtain ⟨d₀, hd₀⟩ := List.exists_mem_of_ne_nil dealers hne
   haveI : Nonempty A.Sh.Poly := ⟨(h d₀ hd₀).choose⟩
@@ -114,14 +123,15 @@ theorem dkg_completes (hS : S.Valid) (hA : Contracts S A) (hSh : Shamir.Contract
   intro o ho
   obtain ⟨d, hd, rfl⟩ := List.mem_map.mp ho
   obtain ⟨n, hn⟩ := hout i hi d hd
-  rw [(hp d hd).2 i n _ hi hn, List.map_map]
+  rw [((hp d hd).2 i n _ hi hn).1, List.map_map]
   conv_rhs => rw [← List.map_id (A.shareIds i)]
   exact List.map_congr_left fun k _ => hSh.eval_index _ k
 
 /-- **DKG agreement.** Let `dealers` be nonempty, and `out` as in `dkg_completes`. There are
 polynomials `p d`, one per dealer `d` in `dealers`, each with `degree_bound() < t`, such that
 whenever `complete_dkg` returns `Ok(dk)` for an honest party `i` on `dkgInput dealers out i`,
-`dk.my_shares = [(k, Σ_d (p d).eval(k).value) for k in share_ids_of(i)]`.
+`dk.my_shares = [(k, Σ_d (p d).eval(k).value) for k in share_ids_of(i)]`, and
+`dk.commitment_for_index(k) = Some(c)` ⇒ `c = G::generator() * Σ_d (p d).eval(k).value`.
 
 All honest parties pass the same `dealers`: this is the caller obligation that all parties use the
 outputs of the same certified dealers. `dkg_recover_same_secret_of_tob` derives it from the TOB. -/
@@ -134,12 +144,21 @@ theorem dkg_outputs_agree (hS : S.Valid) (hA : Contracts S A) (hSh : Shamir.Cont
     (hout : ∀ i, i ∉ corrupt → ∀ d ∈ dealers, ∃ n, (σ d n).output i = some (out i d))
     (hne : dealers ≠ []) :
     ∃ p : Party → A.Sh.Poly, (∀ d ∈ dealers, A.Sh.degreeBound (p d) < S.t) ∧
-      ∀ i dk, i ∉ corrupt → D.completeDkg (dkgInput dealers out i) = some dk →
+      (∀ i dk, i ∉ corrupt → D.completeDkg (dkgInput dealers out i) = some dk →
         A.shareList (D.shares dk) = (A.shareIds i).map fun k =>
-          (⟨k, (dealers.map fun d => (A.Sh.eval (p d) k).value).sum⟩ : Shamir.Eval A.F) := by
+          (⟨k, (dealers.map fun d => (A.Sh.eval (p d) k).value).sum⟩ : Shamir.Eval A.F)) ∧
+      ∀ i dk k x, i ∉ corrupt → D.completeDkg (dkgInput dealers out i) = some dk →
+        D.commitmentForIndex dk k = some x →
+          x = (dealers.map fun d => (A.Sh.eval (p d) k).value).sum := by
   obtain ⟨p, hp⟩ := dealer_polys hS hA hcorrupt hne hcert hrun
-  exact ⟨p, fun d hd => (hp d hd).1, fun i dk hi hdk =>
-    dkg_shares hSh hD (fun d hd => (hp d hd).2) hi (hout i hi) hdk⟩
+  refine ⟨p, fun d hd => (hp d hd).1, fun i dk hi hdk =>
+    dkg_shares hSh hD (fun d hd i n o hi ho => ((hp d hd).2 i n o hi ho).1) hi (hout i hi) hdk,
+    fun i dk k x hi hdk hx => ?_⟩
+  rw [hD.complete_commitments _ dk k x hdk hx]
+  simp only [dkgInput, List.map_map, Function.comp_def]
+  refine congrArg List.sum (List.map_congr_left fun d hd => ?_)
+  obtain ⟨n, hn⟩ := hout i hi d hd
+  exact ((hp d hd).2 i n _ hi hn).2 k
 
 omit [DecidableEq Party] [Fintype Party] in
 lemma sumPolys_degree_lt (hSh : Shamir.Contracts A.Sh) {t : ℕ} (p : A.Sh.Poly)
@@ -207,7 +226,7 @@ theorem dkg_recover_same_secret (hS : S.Valid) (hA : Contracts S A)
         e ∈ A.shareList (D.shares dk)) →
       (es.map (·.index)).Nodup → es.length = S.t →
       A.Sh.recoverC0 S.t es = .ok (dealers.map fun d => A.Sh.c0 (p d)).sum := by
-  obtain ⟨p, hdeg, hagree⟩ :=
+  obtain ⟨p, hdeg, hagree, -⟩ :=
     dkg_outputs_agree hS hA hSh hD hcorrupt hcert hrun hout hne
   refine ⟨p, fun es hes hnodup hlen => recover_joint hSh hne hdeg (fun e he => ?_) hnodup hlen⟩
   obtain ⟨i, dk, hi, hdk, hmem⟩ := hes e he
